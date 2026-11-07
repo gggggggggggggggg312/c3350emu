@@ -55,6 +55,63 @@ double entropy(const std::vector<std::uint8_t>& d, std::size_t begin, std::size_
 bool printable(std::uint8_t c) { return c>=32 && c<=126; }
 }
 
+std::string FlsParser::inspect_directory(const std::filesystem::path& path,
+                                             std::uintmax_t max_file_size) {
+    const auto data = read_all(path, max_file_size);
+    std::ostringstream out;
+    out << "C3350EMU candidate FLS directory scan\\n"
+        << "======================================\\n"
+        << "Input: " << path.string() << "\\n"
+        << "Scan: 32-byte aligned records in the first 0x1000 bytes\\n"
+        << "Pattern: four zero bytes followed by a short uppercase/underscore name\\n"
+        << "NOTE: This pattern is inferred from one BSY sample, not a confirmed format specification.\\n\\n";
+
+    std::size_t found = 0;
+    const std::size_t scan_end = std::min<std::size_t>(data.size(), 0x1000);
+    for (std::size_t offset = 0xE0; offset + 32 <= scan_end; offset += 0x20) {
+        if (data[offset] != 0 || data[offset + 1] != 0 ||
+            data[offset + 2] != 0 || data[offset + 3] != 0) {
+            continue;
+        }
+
+        std::string name;
+        bool valid = true;
+        bool terminated = false;
+        for (std::size_t i = 0; i < 12; ++i) {
+            const auto ch = data[offset + 4 + i];
+            if (ch == 0) {
+                terminated = true;
+                continue;
+            }
+            if (terminated || !((ch >= 'A' && ch <= 'Z') ||
+                                (ch >= '0' && ch <= '9') || ch == '_')) {
+                valid = false;
+                break;
+            }
+            name.push_back(static_cast<char>(ch));
+        }
+        if (!valid || name.empty()) continue;
+
+        out << "Record @ " << hex_u64(offset, 8) << "  name=" << name << "\\n"
+            << "  raw little-endian words:";
+        for (std::size_t word = 0; word < 8; ++word) {
+            const std::size_t pos = offset + word * 4;
+            const std::uint32_t value =
+                static_cast<std::uint32_t>(data[pos]) |
+                (static_cast<std::uint32_t>(data[pos + 1]) << 8) |
+                (static_cast<std::uint32_t>(data[pos + 2]) << 16) |
+                (static_cast<std::uint32_t>(data[pos + 3]) << 24);
+            out << (word == 0 ? " " : ", ") << "W" << word << "=" << hex_u64(value, 8);
+        }
+        out << "\\n";
+        ++found;
+    }
+
+    out << "\\nCandidate records found: " << found << "\\n"
+        << "Word values are raw observations; no offsets, sizes, checksums, or load addresses are assigned meanings.\\n";
+    return out.str();
+}
+
 FlsInfo FlsParser::inspect(const std::filesystem::path& path,
                            std::size_t header_size,
                            std::uintmax_t max_file_size) {
