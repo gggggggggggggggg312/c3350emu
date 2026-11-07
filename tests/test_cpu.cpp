@@ -340,5 +340,31 @@ int main(){
  exclusive_cpu.set_register(15,0x1010u);
  exclusive_cpu.step();exclusive_cpu.step();exclusive_cpu.step();
  assert(exclusive_cpu.get_register(2)==1u);
+
+ // Data Abort: an unmapped LDR enters Abort mode at vector 0x10.
+ Memory abort_memory;
+ abort_memory.map(0x00000000u,0x2000u,true,"Abort vectors and test code");
+ abort_memory.write32le(0x00001000u,0xE5910000u); // LDR r0,[r1]
+ abort_memory.write32le(0x00000010u,0xE3A0202Au); // Abort handler: MOV r2,#42
+ CPU abort_cpu(abort_memory);
+ abort_cpu.reset(0x1000u);
+ abort_cpu.set_register(1,0x90000000u);
+ abort_cpu.step();
+ assert(abort_cpu.getPC()==0x10u);
+ assert((abort_cpu.get_cpsr()&0x1fu)==0x17u);
+ assert(abort_cpu.get_data_fault_address()==0x90000000u);
+ assert(abort_cpu.get_data_fault_status()==0x8u);
+ assert(abort_cpu.get_register(14)==0x1008u);
+ abort_cpu.step();
+ assert(abort_cpu.get_register(2)==42u);
+ // Prefetch Abort: fetching an instruction from unmapped memory enters 0x0C.
+ CPU prefetch_cpu(abort_memory);
+ prefetch_cpu.reset(0x90000000u);
+ prefetch_cpu.step();
+ assert(prefetch_cpu.getPC()==0x0Cu);
+ assert((prefetch_cpu.get_cpsr()&0x1fu)==0x17u);
+ assert(prefetch_cpu.get_instruction_fault_address()==0x90000000u);
+ assert(prefetch_cpu.get_instruction_fault_status()==0x8u);
+ assert(prefetch_cpu.get_register(14)==0x90000004u);
  return 0;
 }
