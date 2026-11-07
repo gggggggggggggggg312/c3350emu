@@ -35,7 +35,7 @@ def parse_log(text: str) -> list[dict[str, Any]]:
             current = {
                 "kind": item_match.group("kind").strip(),
                 "item_name": item_match.group("name").strip(),
-                "source_file": Path(item_match.group("path")).name,
+                "source_file": re.split(r"[\\/]", item_match.group("path"))[-1],
                 "regions": [],
                 "checksum": None,
                 "verified": False,
