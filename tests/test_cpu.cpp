@@ -278,5 +278,39 @@ int main(){
  tlb_cpu.set_register(0,0u);tlb_cpu.set_register(15,0x0000110cu);tlb_cpu.step();
  tlb_cpu.set_register(15,0x00100000u);tlb_cpu.step();
  assert(tlb_cpu.get_register(0)==99u);
+ // Separate ARM instruction/data caches: stale lines remain stale until
+ // the corresponding CP15 maintenance operation invalidates them.
+ Memory cache_memory;
+ cache_memory.map(0x1000u,0x2000u,true,"Cache test RAM");
+ cache_memory.write32le(0x1000u,0xEE010F10u); // MCR SCTLR from r0
+ cache_memory.write32le(0x1004u,0xEE070F15u); // Invalidate all I-cache
+ cache_memory.write32le(0x1008u,0xEE070F16u); // Invalidate all D-cache
+ cache_memory.write32le(0x1100u,0xE3A00001u); // MOV r0,#1
+ cache_memory.write32le(0x1104u,0xE5912000u); // LDR r2,[r1]
+ cache_memory.write32le(0x1200u,5u);
+ CPU cache_cpu(cache_memory);
+ cache_cpu.reset(0x1000u);
+ cache_cpu.set_register(0,0x00001004u); // Enable I-cache and D-cache
+ cache_cpu.step();
+ cache_cpu.set_register(15,0x1100u);cache_cpu.step();
+ assert(cache_cpu.get_register(0)==1u);
+ // Modify backing RAM directly: the I-cache must still return old code.
+ cache_memory.write32le(0x1100u,0xE3A00002u);
+ cache_cpu.set_register(15,0x1100u);cache_cpu.step();
+ assert(cache_cpu.get_register(0)==1u);
+ // Invalidate I-cache, then the changed instruction becomes visible.
+ cache_cpu.set_register(15,0x1004u);cache_cpu.step();
+ cache_cpu.set_register(15,0x1100u);cache_cpu.step();
+ assert(cache_cpu.get_register(0)==2u);
+ // D-cache is independent and also requires its own invalidation.
+ cache_cpu.set_register(1,0x1200u);cache_cpu.set_register(15,0x1104u);cache_cpu.step();
+ assert(cache_cpu.get_register(2)==5u);
+ cache_memory.write32le(0x1200u,9u);
+ cache_cpu.set_register(15,0x1104u);cache_cpu.step();
+ assert(cache_cpu.get_register(2)==5u);
+ cache_cpu.set_register(0,0x1200u);
+ cache_cpu.set_register(15,0x1008u);cache_cpu.step();
+ cache_cpu.set_register(15,0x1104u);cache_cpu.step();
+ assert(cache_cpu.get_register(2)==9u);
  return 0;
 }
