@@ -228,6 +228,12 @@ void CPU::step_unchecked(){
  else if((ins&0x0F000000u)==0x0F000000u)enter_svc_exception(registers_[15]);
  else if((ins&0x0F000010u)==0x0E000010u && ((ins>>8)&15u)==15u)
   execute_cp15_transfer(ins);
+ else if((ins&0x0FFFFFF0u)==0x012FFF30u){
+  const target=read_operand_register(ins&15u);
+  registers_[14]=registers_[15];
+  if(target&1u){cpsr_|=(1u<<5);registers_[15]=target&~1u;}
+  else{cpsr_&=~(1u<<5);registers_[15]=target&~3u;}
+ }
  else if((ins&0x0FFFFFF0u)==0x012FFF10u){
   const auto target=read_operand_register(ins&15u);
   if(target&1u){cpsr_|=(1u<<5);registers_[15]=target&~1u;}
@@ -572,7 +578,13 @@ void CPU::execute_thumb(std::uint16_t ins){
  if((ins&0xFC00u)==0x4400u){
   const unsigned op=(ins>>8)&3u,rd=(ins&7u)|((ins>>4)&8u),rs=(ins>>3)&15u;
   const auto a=reg(rd),b=reg(rs);
-  if(op==3){const auto target=b;if(target&1u){cpsr_|=(1u<<5);registers_[15]=target&~1u;}else{cpsr_&=~(1u<<5);registers_[15]=target&~3u;}return;}
+  if(op==3){
+   const auto target=b;
+   if(ins&(1u<<7))registers_[14]=registers_[15]|1u;
+   if(target&1u){cpsr_|=(1u<<5);registers_[15]=target&~1u;}
+   else{cpsr_&=~(1u<<5);registers_[15]=target&~3u;}
+   return;
+  }
   if(op==0){const auto result=a+b;if(rd==15)registers_[15]=result&~1u;else registers_[rd]=result;}
   else if(op==1){const auto result=a-b;set_nz(result);cpsr_&=~C;if(a>=b)cpsr_|=C;}
   else {if(rd==15)registers_[15]=b&~1u;else registers_[rd]=b;}
