@@ -1,0 +1,69 @@
+name: Build C3350EMU
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  windows:
+    name: Windows x64 executable
+    runs-on: windows-latest
+
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Configure CMake
+        run: cmake -S . -B build -A x64
+
+      - name: Build Release executable
+        run: cmake --build build --config Release --parallel
+
+      - name: Prepare portable package
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path dist | Out-Null
+          Copy-Item build/Release/c3350emu.exe dist/
+          @"
+          C3350EMU
+          =========
+
+          This is an early emulator scaffold. It does not boot or emulate the
+          Samsung GT-C3350 yet. Run c3350emu.exe to check the compiled program.
+          "@ | Set-Content dist/README.txt
+
+      - name: Upload Windows executable
+        uses: actions/upload-artifact@v4
+        with:
+          name: C3350EMU-windows-x64
+          path: dist/
+          if-no-files-found: error
+          retention-days: 30
+
+  linux:
+    name: Linux x64 build
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Configure CMake
+        run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+
+      - name: Build
+        run: cmake --build build --parallel
+
+      - name: Upload Linux executable
+        uses: actions/upload-artifact@v4
+        with:
+          name: C3350EMU-linux-x64
+          path: build/c3350emu
+          if-no-files-found: error
+          retention-days: 30
