@@ -118,6 +118,10 @@ int main(int argc, char** argv) {
             std::cout << "Runtime memory operations applied: " << std::dec << plan.memory_initialization.size() << "\n";
             CPU cpu(memory);
             cpu.reset(plan.entry);
+            for (const auto& reg : plan.initial_registers) cpu.set_register(reg.index, reg.value);
+            if (plan.has_stack_pointer) cpu.set_register(13, plan.stack_pointer);
+            std::cout << "Initial registers: " << std::dec << plan.initial_registers.size()
+                      << (plan.has_stack_pointer ? " + SP" : "") << "\\n";
             std::cout << "Starting CPU at 0x" << std::hex << plan.entry
                       << (plan.entry&1u?" (Thumb)":" (ARM)")
                       << "\\nInstruction/step limit: " << std::dec << plan.instruction_limit << "\\n";
