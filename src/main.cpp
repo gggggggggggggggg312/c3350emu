@@ -68,7 +68,7 @@ int main(int argc, char** argv) {
             const auto instruction_limit = parse_number(argv[6], "instruction limit");
             if (ram_base > 0xffffffffu || ram_size == 0 ||
                 ram_size > std::numeric_limits<std::size_t>::max() ||
-                ram_base + ram_size > (std::uint64_t{1} << 32) ||
+                ram_size > (std::uint64_t{1} << 32) - ram_base ||
                 entry > 0xffffffffu || instruction_limit == 0)
                 throw std::runtime_error("RAM, entry point, or instruction limit is out of range.");
 
