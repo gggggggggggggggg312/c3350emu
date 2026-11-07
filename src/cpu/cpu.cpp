@@ -31,6 +31,26 @@ void CPU::step(){
   if(target&1u){cpsr_|=(1u<<5);registers_[15]=target&~1u;}
   else{cpsr_&=~(1u<<5);registers_[15]=target&~3u;}
  }
+ else if((ins&0x0FFF0FF0u)==0x016F0F10u){
+  const unsigned rd=(ins>>12)&15u,rm=ins&15u;
+  if(rd==15u||rm==15u)throw std::runtime_error("CLZ with PC register is unpredictable");
+  const auto value=registers_[rm];
+  unsigned count=0;
+  if(value==0)count=32;
+  else{
+   std::uint32_t mask=0x80000000u;
+   while((value&mask)==0u){++count;mask>>=1;}
+  }
+  registers_[rd]=count;
+ }
+ else if((ins&0x0FB00FF0u)==0x01000090u){
+  const bool byte=(ins&(1u<<22))!=0;
+  const unsigned rn=(ins>>16)&15u,rd=(ins>>12)&15u,rm=ins&15u;
+  if(rn==15u||rd==15u||rm==15u)throw std::runtime_error("SWP with PC register is unpredictable");
+  const auto address=registers_[rn],source=registers_[rm];
+  if(byte){const auto old=memory_.read8(address);memory_.write8(address,static_cast<std::uint8_t>(source));registers_[rd]=old;}
+  else{const auto old=memory_.read32le(address);memory_.write32le(address,source);registers_[rd]=old;}
+ }
  else if((ins&0x0FC000F0u)==0x00000090u)execute_multiply(ins);
  else if((ins&0x0E000090u)==0x00000090u)execute_halfword_transfer(ins);
  else if((ins&0x0E000000u)==0x08000000u)execute_block_transfer(ins);
