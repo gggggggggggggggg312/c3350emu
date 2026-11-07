@@ -6,6 +6,29 @@ std::uint32_t ror(std::uint32_t x,unsigned n){n&=31u;return n?((x>>n)|(x<<(32u-n
 }
 CPU::CPU(Memory& m):memory_(m){}
 void CPU::reset(std::uint32_t entry){registers_.fill(0);user_bank_.fill(0);fiq_bank_.fill(0);irq_bank_.fill(0);svc_bank_.fill(0);abort_bank_.fill(0);undefined_bank_.fill(0);spsr_fiq_=spsr_irq_=spsr_svc_=spsr_abort_=spsr_undefined_=0;cp15_control_=cp15_ttbr0_=cp15_dacr_=cp15_context_id_=0;cpsr_=0xD3;if(entry&1u){cpsr_|=(1u<<5);registers_[15]=entry&~1u;}else registers_[15]=entry;instructions_executed_=0;}
+std::uint32_t CPU::translate_address(std::uint32_t va,bool write)const{
+ if((cp15_control_&1u)==0u)return va;
+ const std::uint32_t l1_base=cp15_ttbr0_&0xffffc000u;
+ const std::uint32_t descriptor=memory_.read32le(l1_base+((va>>20)&0xfffu)*4u);
+ if((descriptor&3u)!=2u)throw std::runtime_error("MMU translation fault: only first-level section descriptors are supported");
+ const unsigned domain=(descriptor>>5)&15u;
+ const unsigned domain_access=(cp15_dacr_>>(domain*2u))&3u;
+ if(domain_access==0u||domain_access==2u)throw std::runtime_error("MMU domain fault");
+ const bool privileged=(cpsr_&0x1fu)!=0x10u;
+ if(domain_access!=3u){
+  const unsigned ap=(descriptor>>10)&3u;
+  bool allowed=false;
+  if(ap==1u)allowed=privileged;
+  else if(ap==2u)allowed=privileged||!write;
+  else if(ap==3u)allowed=true;
+  if(!allowed)throw std::runtime_error("MMU section permission fault");
+ }
+ return (descriptor&0xfff00000u)|(va&0x000fffffu);
+}
+std::uint8_t CPU::read_virtual8(std::uint32_t a)const{return memory_.read8(translate_address(a,false));}
+std::uint32_t CPU::read_virtual32(std::uint32_t a)const{return memory_.read32le(translate_address(a,false));}
+void CPU::write_virtual8(std::uint32_t a,std::uint8_t v){memory_.write8(translate_address(a,true),v);}
+void CPU::write_virtual32(std::uint32_t a,std::uint32_t v){memory_.write32le(translate_address(a,true),v);}
 std::uint32_t CPU::getPC()const{return registers_[15];}
 std::uint32_t CPU::get_register(unsigned i)const{if(i>=16)throw std::out_of_range("ARM register index");return registers_[i];}
 void CPU::set_register(unsigned i,std::uint32_t v){if(i>=16)throw std::out_of_range("ARM register index");registers_[i]=v;}
@@ -96,12 +119,12 @@ bool CPU::condition_passed(unsigned q)const{
 void CPU::step(){
  const auto address=registers_[15];
  if(cpsr_&(1u<<5)){
-  const auto ins=static_cast<std::uint16_t>(memory_.read8(address) |
-      (static_cast<std::uint16_t>(memory_.read8(address+1u))<<8));
+  const auto ins=static_cast<std::uint16_t>(read_virtual8(address) |
+      (static_cast<std::uint16_t>(read_virtual8(address+1u))<<8));
   registers_[15]=address+2u;++instructions_executed_;
   execute_thumb(ins);return;
  }
- const auto ins=memory_.read32le(address);registers_[15]=address+4u;++instructions_executed_;
+ const auto ins=read_virtual32(address);registers_[15]=address+4u;++instructions_executed_;
  if(!condition_passed(ins>>28))return;
  if((ins&0x0FBF0FFFu)==0x010F0000u || (ins&0x0FB0FFF0u)==0x0120F000u || (ins&0x0FB0F000u)==0x0320F000u)
   execute_status_transfer(ins);
@@ -130,8 +153,8 @@ void CPU::step(){
   const unsigned rn=(ins>>16)&15u,rd=(ins>>12)&15u,rm=ins&15u;
   if(rn==15u||rd==15u||rm==15u)throw std::runtime_error("SWP with PC register is unpredictable");
   const auto address=registers_[rn],source=registers_[rm];
-  if(byte){const auto old=memory_.read8(address);memory_.write8(address,static_cast<std::uint8_t>(source));registers_[rd]=old;}
-  else{const auto old=memory_.read32le(address);memory_.write32le(address,source);registers_[rd]=old;}
+  if(byte){const auto old=read_virtual8(address);write_virtual8(address,static_cast<std::uint8_t>(source));registers_[rd]=old;}
+  else{const auto old=read_virtual32(address);write_virtual32(address,source);registers_[rd]=old;}
  }
  else if((ins&0x0F8000F0u)==0x00800090u)execute_long_multiply(ins);
   else if((ins&0x0FC000F0u)==0x00000090u)execute_multiply(ins);
@@ -279,8 +302,8 @@ void CPU::execute_single_transfer(std::uint32_t ins){
   else off=ror(value,amount);
  }
  const auto adjusted=up?base+off:base-off;const auto address=pre?adjusted:base;
- if(load){const auto value=byte?memory_.read8(address):memory_.read32le(address);if(rd==15)registers_[15]=value;else registers_[rd]=value;}
- else{const auto value=read_operand_register(rd);if(byte)memory_.write8(address,std::uint8_t(value));else memory_.write32le(address,value);}
+ if(load){const auto value=byte?read_virtual8(address):read_virtual32(address);if(rd==15)registers_[15]=value;else registers_[rd]=value;}
+ else{const auto value=read_operand_register(rd);if(byte)write_virtual8(address,std::uint8_t(value));else write_virtual32(address,value);}
  if(!pre||wb)registers_[rn]=adjusted;
 }
 
@@ -291,16 +314,16 @@ void CPU::execute_halfword_transfer(std::uint32_t ins){
  if(!load&&type!=1u)throw std::runtime_error("Signed ARM transfer is load-only");
  const std::uint32_t offset=immediate?((((ins>>8)&15u)<<4)|(ins&15u)):read_operand_register(ins&15u);
  const auto base=read_operand_register(rn),adjusted=up?base+offset:base-offset,address=pre?adjusted:base;
- const auto read16=[this](std::uint32_t a){return static_cast<std::uint16_t>(memory_.read8(a)|(static_cast<std::uint16_t>(memory_.read8(a+1u))<<8));};
+ const auto read16=[this](std::uint32_t a){return static_cast<std::uint16_t>(read_virtual8(a)|(static_cast<std::uint16_t>(read_virtual8(a+1u))<<8));};
  if(load){
   std::uint32_t value=0;
   if(type==1u)value=read16(address);
-  else if(type==2u)value=static_cast<std::uint32_t>(static_cast<std::int32_t>(static_cast<std::int8_t>(memory_.read8(address))));
+  else if(type==2u)value=static_cast<std::uint32_t>(static_cast<std::int32_t>(static_cast<std::int8_t>(read_virtual8(address))));
   else value=static_cast<std::uint32_t>(static_cast<std::int32_t>(static_cast<std::int16_t>(read16(address))));
   if(rd==15u)registers_[15]=value&~3u;else registers_[rd]=value;
  }else{
   const auto value=read_operand_register(rd);
-  memory_.write8(address,static_cast<std::uint8_t>(value));memory_.write8(address+1u,static_cast<std::uint8_t>(value>>8));
+  write_virtual8(address,static_cast<std::uint8_t>(value));write_virtual8(address+1u,static_cast<std::uint8_t>(value>>8));
  }
  if(!pre||writeback)registers_[rn]=adjusted;
 }
@@ -321,11 +344,11 @@ void CPU::execute_block_transfer(std::uint32_t ins){
  for(unsigned reg=0;reg<16;++reg){
   if(!(list&(1u<<reg)))continue;
   if(load){
-   const auto value=memory_.read32le(address);
+   const auto value=read_virtual32(address);
    if(reg==15)registers_[15]=value;
    else registers_[reg]=value;
   }else{
-   memory_.write32le(address,read_operand_register(reg));
+   write_virtual32(address,read_operand_register(reg));
   }
   address+=4u;
  }
@@ -406,15 +429,15 @@ void CPU::execute_thumb(std::uint16_t ins){
  if((ins&0xF000u)==0x5000u){
   const unsigned op=(ins>>9)&7u,rm=(ins>>6)&7u,rn=(ins>>3)&7u,rd=ins&7u;
   const auto address=registers_[rn]+registers_[rm];
-  const auto read16=[this](std::uint32_t a){return static_cast<std::uint16_t>(memory_.read8(a)|(static_cast<std::uint16_t>(memory_.read8(a+1u))<<8));};
+  const auto read16=[this](std::uint32_t a){return static_cast<std::uint16_t>(read_virtual8(a)|(static_cast<std::uint16_t>(read_virtual8(a+1u))<<8));};
   switch(op){
-   case 0:memory_.write32le(address,registers_[rd]);break;
-   case 1:memory_.write8(address,static_cast<std::uint8_t>(registers_[rd]));memory_.write8(address+1u,static_cast<std::uint8_t>(registers_[rd]>>8));break;
-   case 2:memory_.write8(address,static_cast<std::uint8_t>(registers_[rd]));break;
-   case 3:registers_[rd]=static_cast<std::uint32_t>(static_cast<std::int32_t>(static_cast<std::int8_t>(memory_.read8(address))));break;
-   case 4:registers_[rd]=memory_.read32le(address);break;
+   case 0:write_virtual32(address,registers_[rd]);break;
+   case 1:write_virtual8(address,static_cast<std::uint8_t>(registers_[rd]));write_virtual8(address+1u,static_cast<std::uint8_t>(registers_[rd]>>8));break;
+   case 2:write_virtual8(address,static_cast<std::uint8_t>(registers_[rd]));break;
+   case 3:registers_[rd]=static_cast<std::uint32_t>(static_cast<std::int32_t>(static_cast<std::int8_t>(read_virtual8(address))));break;
+   case 4:registers_[rd]=read_virtual32(address);break;
    case 5:registers_[rd]=read16(address);break;
-   case 6:registers_[rd]=memory_.read8(address);break;
+   case 6:registers_[rd]=read_virtual8(address);break;
    case 7:registers_[rd]=static_cast<std::uint32_t>(static_cast<std::int32_t>(static_cast<std::int16_t>(read16(address))));break;
   }
   return;
@@ -423,8 +446,8 @@ void CPU::execute_thumb(std::uint16_t ins){
  if((ins&0xF000u)==0x8000u){
   const bool load=ins&(1u<<11);const unsigned offset=((ins>>6)&31u)*2u,rn=(ins>>3)&7u,rd=ins&7u;
   const auto address=registers_[rn]+offset;
-  if(load)registers_[rd]=static_cast<std::uint16_t>(memory_.read8(address)|(static_cast<std::uint16_t>(memory_.read8(address+1u))<<8));
-  else{memory_.write8(address,static_cast<std::uint8_t>(registers_[rd]));memory_.write8(address+1u,static_cast<std::uint8_t>(registers_[rd]>>8));}
+  if(load)registers_[rd]=static_cast<std::uint16_t>(read_virtual8(address)|(static_cast<std::uint16_t>(read_virtual8(address+1u))<<8));
+  else{write_virtual8(address,static_cast<std::uint8_t>(registers_[rd]));write_virtual8(address+1u,static_cast<std::uint8_t>(registers_[rd]>>8));}
   return;
  }
  // Load address from PC or SP.
@@ -444,7 +467,7 @@ void CPU::execute_thumb(std::uint16_t ins){
   if(list==0)throw std::runtime_error("Empty Thumb multiple-transfer register list is unsupported");
   auto address=registers_[rn];
   for(unsigned r=0;r<8;++r)if(list&(1u<<r)){
-   if(load)registers_[r]=memory_.read32le(address);else memory_.write32le(address,registers_[r]);
+   if(load)registers_[r]=read_virtual32(address);else write_virtual32(address,registers_[r]);
    address+=4u;
   }
   registers_[rn]=address;return;
@@ -463,21 +486,21 @@ void CPU::execute_thumb(std::uint16_t ins){
  // PC-relative literal load.
  if((ins&0xF800u)==0x4800u){
   const unsigned rd=(ins>>8)&7u;const auto address=((registers_[15]+2u)&~3u)+((ins&0xffu)<<2);
-  registers_[rd]=memory_.read32le(address);return;
+  registers_[rd]=read_virtual32(address);return;
  }
  // Immediate word/byte load and store.
  if((ins&0xE000u)==0x6000u){
   const bool byte=ins&(1u<<12),load=ins&(1u<<11);const unsigned imm=(ins>>6)&31u,rn=(ins>>3)&7u,rd=ins&7u;
   const auto address=registers_[rn]+(byte?imm:imm*4u);
-  if(load)registers_[rd]=byte?memory_.read8(address):memory_.read32le(address);
-  else if(byte)memory_.write8(address,static_cast<std::uint8_t>(registers_[rd]));
-  else memory_.write32le(address,registers_[rd]);
+  if(load)registers_[rd]=byte?read_virtual8(address):read_virtual32(address);
+  else if(byte)write_virtual8(address,static_cast<std::uint8_t>(registers_[rd]));
+  else write_virtual32(address,registers_[rd]);
   return;
  }
  // SP-relative word load/store.
  if((ins&0xF000u)==0x9000u){
   const bool load=ins&(1u<<11);const unsigned rd=(ins>>8)&7u;const auto address=registers_[13]+((ins&0xffu)<<2);
-  if(load)registers_[rd]=memory_.read32le(address);else memory_.write32le(address,registers_[rd]);return;
+  if(load)registers_[rd]=read_virtual32(address);else write_virtual32(address,registers_[rd]);return;
  }
  // PUSH/POP register list.
  if((ins&0xF600u)==0xB400u){
@@ -485,13 +508,13 @@ void CPU::execute_thumb(std::uint16_t ins){
   if(!pop){
    unsigned count=0;for(unsigned i=0;i<8;++i)if(list&(1u<<i))++count;if(extra)++count;
    auto address=registers_[13]-4u*count;
-   for(unsigned i=0;i<8;++i)if(list&(1u<<i)){memory_.write32le(address,registers_[i]);address+=4;}
-   if(extra)memory_.write32le(address,registers_[14]);
+   for(unsigned i=0;i<8;++i)if(list&(1u<<i)){write_virtual32(address,registers_[i]);address+=4;}
+   if(extra)write_virtual32(address,registers_[14]);
    registers_[13]-=4u*count;
   }else{
    auto address=registers_[13];
-   for(unsigned i=0;i<8;++i)if(list&(1u<<i)){registers_[i]=memory_.read32le(address);address+=4;}
-   if(extra){const auto value=memory_.read32le(address);address+=4;registers_[15]=value&~1u;}
+   for(unsigned i=0;i<8;++i)if(list&(1u<<i)){registers_[i]=read_virtual32(address);address+=4;}
+   if(extra){const auto value=read_virtual32(address);address+=4;registers_[15]=value&~1u;}
    registers_[13]=address;
   }
   return;
