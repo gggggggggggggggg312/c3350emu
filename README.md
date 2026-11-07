@@ -13,10 +13,12 @@ Current functionality:
 - Python firmware inspector: SHA-256, header dump, and printable-string sampling.
 - FlashTool E2 session-log analyzer: extracts item names, downloader regions, checksum/verification results and transfer times from text logs.
 - Basic 32-bit address-space memory map with read/write permissions.
+- Initial memory-backed ARM-state interpreter: data-processing instructions, branches, and basic immediate/register-offset single transfers.
+- CPU unit tests for instruction execution, conditional execution, and memory access.
 - Automated C++ tests through CTest and GitHub Actions.
 - Windows and Linux CI builds.
 
-The FLS parser is intentionally conservative. The complete Samsung FLS container structure, segment records, checksums, load addresses, and entry-point rules have not yet been verified. The current parser does not claim to extract executable sections.
+The CPU interpreter is an early development component, not yet a verified XMM2150/GT-C3350 CPU model. It implements only a subset of ARM-state instructions; Thumb state, exceptions, coprocessors, MMU behavior, timing, and hardware-specific reset behavior are not implemented. The CPU architecture/core identification remains provisional. See docs/CPU_IMPLEMENTATION.md.\n\nThe FLS parser is intentionally conservative. The complete Samsung FLS container structure, segment records, checksums, load addresses, and entry-point rules have not yet been verified. The current parser does not claim to extract executable sections.
 
 ## Hardware research
 
