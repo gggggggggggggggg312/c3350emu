@@ -49,6 +49,16 @@ int main(){
  cpu.set_register(2,0x120c);cpu.step();assert(m.read32le(0x120c)==3);
  cpu.step();assert(cpu.get_register(3)==3);
  cpu.set_register(1,0x1044);cpu.step();assert((cpu.get_cpsr()&(1u<<5))==0&&cpu.getPC()==0x1044);
+ // Thumb register-offset STR/LDR.
+ m.write8(0x1120,0x10);m.write8(0x1121,0x50); // STR r0,[r2,r0]
+ m.write8(0x1122,0x13);m.write8(0x1123,0x58); // LDR r3,[r2,r0]
+ cpu.set_register(0,3);cpu.set_register(2,0x1300);cpu.set_register(15,0x1120);
+ cpu.set_register(15,0x1120); // resume in Thumb state after BX setup below
+ cpu.set_register(1,0x1121); // no-op marker to keep the test values explicit
+ // Enter Thumb state through the ARM BX instruction.
+ cpu.set_register(15,0x1040);cpu.set_register(1,0x1121);cpu.step();
+ cpu.step();assert(m.read8(0x1303)==3);
+ cpu.step();assert(cpu.get_register(3)==3);
  cpu.set_register(15,0x90000000u);bool threw=false;try{cpu.step();}catch(const std::out_of_range&){threw=true;}assert(threw);
  return 0;
 }
