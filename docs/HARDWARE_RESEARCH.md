@@ -115,6 +115,22 @@ sequence. It is useful for designing a protocol-level LPDDR1 model and for
 recognizing likely initialization phases in a future boot trace. Do not copy
 Microchip MPDDRC register names or values into the XMM2150 emulator.
 
+## Emulator implementation: generic LPDDR1 protocol trace
+
+C3350EMU now includes `memory::Lpddr1Protocol` and the
+`--lpddr1-sequence` CLI command. It emits a generic LPDDR1 initialization
+trace based on the reference sequence above and has a unit test for the
+expected phases.
+
+This is deliberately a protocol-level scaffold only:
+- It does not implement an XMM2150 memory-controller register bank.
+- It does not claim any register offsets, bitfields, timing values beyond the
+  generic 200 microsecond power-up wait, physical RAM base, or RAM capacity.
+- It does not sleep for 200 microseconds or initialize physical memory; the
+  output is a trace for research and future implementation.
+- Controller timing and mode-register values remain unknown until verified
+  from XMM2150-specific documentation or a reproducible C3350 boot trace.
+
 ## Explicitly unknown
 
 - Exact ARM1176 implementation suffix (for example, JZ/JZF-S), silicon revision/rXpY, clock and boot exception state.
