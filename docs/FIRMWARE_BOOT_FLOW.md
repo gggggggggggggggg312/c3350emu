@@ -45,3 +45,8 @@ Use `c3350emu --prepare-boot <firmware-directory> [report.txt]` to inventory PSI
 ## Executable multi-region boot image
 
 `--run-boot-plan <boot.plan>` is the first multi-region execution path. A plan defines one shared RAM window, a CPU entry point, an instruction/step limit, and one or more explicit FLS byte ranges. All ranges are loaded before CPU reset and execution, allowing normal branch instructions to transfer control between regions without restarting the CPU. Relative file paths resolve against the plan file's directory. Invalid file ranges, RAM overflows, overlapping destinations, and entries outside loaded data are rejected. This is execution of user-selected raw FLS ranges, not automatic FLS decoding; all offsets and addresses remain user-supplied and unverified for the C3350.
+
+
+## Firmware execution trace
+
+A boot plan may include `TRACE "boot-trace.csv"`. The runner writes one CSV row per attempted instruction, including pre-execution PC, ARM/Thumb state, opcode when readable, source segment and corresponding file offset, post-step PC, and CPSR. This exposes control flow and cross-segment branches during execution. The trace is diagnostic output, not proof that selected raw ranges are valid firmware stages.
