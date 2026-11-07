@@ -20,6 +20,7 @@ void CPU::step(){
  const auto address=registers_[15];const auto ins=memory_.read32le(address);registers_[15]=address+4u;++instructions_executed_;
  if(!condition_passed(ins>>28))return;
  if((ins&0x0FC000F0u)==0x00000090u)execute_multiply(ins);
+ else if((ins&0x0E000000u)==0x08000000u)execute_block_transfer(ins);
  else if((ins&0x0E000000u)==0x0A000000u)execute_branch(ins);
  else if((ins&0x0C000000u)==0x04000000u)execute_single_transfer(ins);
  else if((ins&0x0C000000u)==0||((ins&0x0C000000u)==0x02000000u))execute_data_processing(ins);
@@ -79,4 +80,31 @@ void CPU::execute_single_transfer(std::uint32_t ins){
  if(load){const auto value=byte?memory_.read8(address):memory_.read32le(address);if(rd==15)registers_[15]=value;else registers_[rd]=value;}
  else{const auto value=read_operand_register(rd);if(byte)memory_.write8(address,std::uint8_t(value));else memory_.write32le(address,value);}
  if(!pre||wb)registers_[rn]=adjusted;
+}
+
+void CPU::execute_block_transfer(std::uint32_t ins){
+ const bool pre=ins&(1u<<24),up=ins&(1u<<23),writeback=ins&(1u<<21),load=ins&(1u<<20);
+ const unsigned rn=(ins>>16)&15;
+ const std::uint16_t list=static_cast<std::uint16_t>(ins&0xffffu);
+ if(list==0)throw std::runtime_error("Empty ARM block-transfer register list is unsupported");
+ unsigned count=0;
+ for(unsigned bit=0;bit<16;++bit)if(list&(1u<<bit))++count;
+ const std::uint32_t base=read_operand_register(rn);
+ if(writeback&&(list&(1u<<rn)))
+  throw std::runtime_error("Block transfer with writeback and base in register list is unsupported");
+ std::uint32_t address;
+ if(up) address=base+(pre?4u:0u);
+ else address=base-(4u*count)+(pre?0u:4u);
+ for(unsigned reg=0;reg<16;++reg){
+  if(!(list&(1u<<reg)))continue;
+  if(load){
+   const auto value=memory_.read32le(address);
+   if(reg==15)registers_[15]=value;
+   else registers_[reg]=value;
+  }else{
+   memory_.write32le(address,read_operand_register(reg));
+  }
+  address+=4u;
+ }
+ if(writeback)registers_[rn]=up?base+4u*count:base-4u*count;
 }
