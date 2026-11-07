@@ -114,6 +114,8 @@ int main(int argc, char** argv) {
                           << " bytes=0x" << loaded.bytes_loaded
                           << " CRC32=0x" << loaded.crc32 << "\\n";
             }
+            firmware::apply_memory_initialization(plan,memory);
+            std::cout << "Runtime memory operations applied: " << std::dec << plan.memory_initialization.size() << "\n";
             CPU cpu(memory);
             cpu.reset(plan.entry);
             std::cout << "Starting CPU at 0x" << std::hex << plan.entry
