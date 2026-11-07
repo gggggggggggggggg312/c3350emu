@@ -10,6 +10,8 @@ Current functionality:
 - Native Windows GUI target (`c3350emu-gui`) for selecting firmware/binary files, viewing header bytes, and running a user-configured raw ARM image.
 - Separate simplified ARM instruction and data cache models with CP15 cache invalidation operations.
 - C++ command-line application.\n- Simulated battery subsystem with percentage, voltage estimate, charging/discharging, and elapsed-time progression (`--battery-demo`).
+- ARM Data Abort and Prefetch Abort exception entry with simplified CP15 fault registers.
+- Firmware-set boot-preparation report for PSI, SLB, BSY, and CDS (`--prepare-boot`).
 - Provisional GT-C3350 hardware research profile, available with --platform-info.
 - Conservative FLS file inspection: file size and raw header bytes.
 - Python firmware inspector: SHA-256, header dump, and printable-string sampling.
@@ -168,3 +170,12 @@ The emulator includes a deterministic battery model for power-management experim
 ```
 
 The current default model uses a provisional 1000 mAh capacity, 300 mA charging rate, and 180 mA discharge rate. Voltage is an approximate state-of-charge estimate from 3.30 V to 4.20 V. These are simulation parameters, **not verified GT-C3350 battery specifications or real battery telemetry**.
+
+
+Prepare a local firmware set without guessing physical load addresses:
+
+```powershell
+.\\build\\Release\\c3350emu.exe --prepare-boot C:\\Users\\hp\\Downloads\\C3350XXKK1_OXEKK1 boot-preparation.txt
+```
+
+The report inventories expected components in the observed downloader order. It does not decode FLS records or boot the handset.
