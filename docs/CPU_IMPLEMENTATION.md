@@ -51,3 +51,8 @@ ctest --test-dir build --output-on-failure
 - Any CPU-originated store clears the local reservation; reset also clears it.
 - Unaligned word-exclusive accesses and PC-register forms are rejected.
 - This is a simplified local monitor. It does not model external bus masters, multiprocessor shareability, cache-coherency protocols, or every ARM1176 exclusive-monitor rule.
+
+
+## ARM-to-Thumb BLX immediate
+
+The ARM interpreter supports the unconditional BLX-immediate encoding. It calculates the signed PC-relative target including the H bit, writes the ARM return address to LR, switches CPSR to Thumb state, and continues at the halfword-aligned target. This is a useful ARMv5T interworking path for mixed ARM/Thumb boot code; it does not establish that a particular C3350 firmware image uses this instruction.
