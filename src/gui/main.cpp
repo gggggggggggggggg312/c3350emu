@@ -16,7 +16,8 @@
 
 namespace {
 HWND outputBox=nullptr, ramBaseBox=nullptr, ramSizeBox=nullptr, entryBox=nullptr;
-std::string selectedFile;\nplatform::Battery battery(1000u, 100u);
+std::string selectedFile;
+platform::Battery battery(1000u, 100u);
 constexpr int ID_OPEN=1001, ID_RUN=1002, ID_BASE=1003, ID_SIZE=1004, ID_ENTRY=1005, ID_CHARGE=1006, ID_TICK=1007;
 void append(const std::string& text){
  int n=GetWindowTextLengthA(outputBox);SendMessageA(outputBox,EM_SETSEL,n,n);
