@@ -1,4 +1,5 @@
 #include "fls_parser.hpp"
+#include "memory/memory.hpp"
 
 #include <algorithm>
 #include <array>
@@ -173,6 +174,41 @@ std::string FlsParser::compare_headers_in_directory(
     }
     out << "\nInterpretation: this compares raw prefixes only; it does not identify FLS fields.\n";
     return out.str();
+}
+
+
+LoadResult FlsParser::load_raw_segment(
+    const std::filesystem::path& path, std::uint64_t file_offset,
+    std::size_t length, std::uint32_t load_address, Memory& memory,
+    std::uintmax_t max_file_size) {
+    if (!std::filesystem::exists(path) || !std::filesystem::is_regular_file(path))
+        throw std::runtime_error("Firmware input is not a regular file: " + path.string());
+    const auto file_size = std::filesystem::file_size(path);
+    if (file_size == 0 || file_size > max_file_size)
+        throw std::runtime_error("Firmware file is empty or exceeds the size limit.");
+    if (length == 0 || file_offset > file_size || length > file_size - file_offset)
+        throw std::runtime_error("Selected segment range is invalid or exceeds the file.");
+    if (static_cast<std::uint64_t>(load_address) + length > (std::uint64_t{1} << 32))
+        throw std::runtime_error("Segment exceeds the 32-bit address space.");
+
+    std::ifstream input(path, std::ios::binary);
+    if (!input) throw std::runtime_error("Unable to open firmware input.");
+    input.seekg(static_cast<std::streamoff>(file_offset), std::ios::beg);
+    if (!input) throw std::runtime_error("Unable to seek to selected firmware offset.");
+
+    std::vector<std::uint8_t> bytes(length);
+    input.read(reinterpret_cast<char*>(bytes.data()),
+               static_cast<std::streamsize>(bytes.size()));
+    if (!input) throw std::runtime_error("Could not read the complete selected segment.");
+
+    std::uint32_t crc = 0xffffffffu;
+    for (const auto byte : bytes) {
+        crc ^= byte;
+        for (unsigned bit = 0; bit < 8; ++bit)
+            crc = (crc >> 1) ^ (0xedb88320u & (0u - (crc & 1u)));
+    }
+    memory.write_block(load_address, bytes);
+    return LoadResult{path, file_offset, load_address, length, ~crc};
 }
 
 FlsInfo FlsParser::inspect(const std::filesystem::path& path,
