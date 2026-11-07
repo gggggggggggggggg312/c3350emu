@@ -85,6 +85,30 @@ int main() {
         require(directory_report.find("W4=0x12345678") != std::string::npos,
                 "Directory scanner did not decode a little-endian word.");
 
+
+        // Two files with a shared 4 KiB prefix and one differing byte.
+        const auto compare_dir = dir / "c3350emu_compare_test";
+        std::filesystem::create_directories(compare_dir);
+        const auto compare_a = compare_dir / "a.fls";
+        const auto compare_b = compare_dir / "b.fls";
+        std::vector<unsigned char> compare_bytes(4096, 0x5A);
+        {
+            std::ofstream a(compare_a, std::ios::binary);
+            std::ofstream b(compare_b, std::ios::binary);
+            require(static_cast<bool>(a) && static_cast<bool>(b),
+                    "Could not create header comparison fixtures.");
+            a.write(reinterpret_cast<const char*>(compare_bytes.data()), compare_bytes.size());
+            compare_bytes[123] = 0xA5;
+            b.write(reinterpret_cast<const char*>(compare_bytes.data()), compare_bytes.size());
+            require(static_cast<bool>(a) && static_cast<bool>(b),
+                    "Could not write header comparison fixtures.");
+        }
+        const auto comparison =
+            firmware::FlsParser::compare_headers_in_directory(compare_dir, 4096);
+        require(comparison.find("first difference at 0x0000007B") != std::string::npos,
+                "Header comparison did not report the first differing byte.");
+        std::filesystem::remove_all(compare_dir);
+
         std::filesystem::remove(report);
         std::filesystem::remove(path);
 
