@@ -16,6 +16,7 @@ struct BootPlan {
     std::size_t ram_size = 0;
     std::uint32_t entry = 0;
     std::uint64_t instruction_limit = 0;
+    std::filesystem::path trace_file;
     std::vector<BootSegment> segments;
 };
 BootPlan parse_boot_plan(const std::filesystem::path& path);
