@@ -261,7 +261,7 @@ int main(){
  tlb_memory.write32le(0x00000100u,0xEE020F10u); // MCR TTBR0
  tlb_memory.write32le(0x00000104u,0xEE032F10u); // MCR DACR
  tlb_memory.write32le(0x00000108u,0xEE013F10u); // MCR SCTLR
- tlb_memory.write32le(0x0000010cu,0xEE080F17u); // MCR p15,0,r0,c8,c7,0: invalidate unified TLB
+ tlb_memory.write32le(0x0000110cu,0xEE080F17u); // MCR p15,0,r0,c8,c7,0: invalidate unified TLB
  tlb_memory.write32le(0x00200000u,0xE3A0002Au); // MOV r0,#42
  tlb_memory.write32le(0x00300000u,0xE3A00063u); // MOV r0,#99
  CPU tlb_cpu(tlb_memory);
@@ -275,7 +275,7 @@ int main(){
  tlb_cpu.set_register(15,0x00100000u);tlb_cpu.step();
  assert(tlb_cpu.get_register(0)==42u);
  // Execute TLB invalidate-all from the identity-mapped maintenance region.
- tlb_cpu.set_register(0,0u);tlb_cpu.set_register(15,0x0000010cu);tlb_cpu.step();
+ tlb_cpu.set_register(0,0u);tlb_cpu.set_register(15,0x0000110cu);tlb_cpu.step();
  tlb_cpu.set_register(15,0x00100000u);tlb_cpu.step();
  assert(tlb_cpu.get_register(0)==99u);
  return 0;
