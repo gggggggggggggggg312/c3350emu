@@ -109,6 +109,65 @@ void CPU::execute_thumb(std::uint16_t ins){
   else {if(rd==15)registers_[15]=b&~1u;else registers_[rd]=b;}
   return;
  }
+
+ // Register-offset byte/word/halfword and signed-byte/halfword transfers.
+ if((ins&0xF000u)==0x5000u){
+  const unsigned op=(ins>>9)&7u,rm=(ins>>6)&7u,rn=(ins>>3)&7u,rd=ins&7u;
+  const auto address=registers_[rn]+registers_[rm];
+  const auto read16=[this](std::uint32_t a){return static_cast<std::uint16_t>(memory_.read8(a)|(static_cast<std::uint16_t>(memory_.read8(a+1u))<<8));};
+  switch(op){
+   case 0:memory_.write32le(address,registers_[rd]);break;
+   case 1:memory_.write8(address,static_cast<std::uint8_t>(registers_[rd]));memory_.write8(address+1u,static_cast<std::uint8_t>(registers_[rd]>>8));break;
+   case 2:memory_.write8(address,static_cast<std::uint8_t>(registers_[rd]));break;
+   case 3:registers_[rd]=static_cast<std::uint32_t>(static_cast<std::int32_t>(static_cast<std::int8_t>(memory_.read8(address))));break;
+   case 4:registers_[rd]=memory_.read32le(address);break;
+   case 5:registers_[rd]=read16(address);break;
+   case 6:registers_[rd]=memory_.read8(address);break;
+   case 7:registers_[rd]=static_cast<std::uint32_t>(static_cast<std::int32_t>(static_cast<std::int16_t>(read16(address))));break;
+  }
+  return;
+ }
+ // Immediate halfword transfers.
+ if((ins&0xF000u)==0x8000u){
+  const bool load=ins&(1u<<11);const unsigned offset=((ins>>6)&31u)*2u,rn=(ins>>3)&7u,rd=ins&7u;
+  const auto address=registers_[rn]+offset;
+  if(load)registers_[rd]=static_cast<std::uint16_t>(memory_.read8(address)|(static_cast<std::uint16_t>(memory_.read8(address+1u))<<8));
+  else{memory_.write8(address,static_cast<std::uint8_t>(registers_[rd]));memory_.write8(address+1u,static_cast<std::uint8_t>(registers_[rd]>>8));}
+  return;
+ }
+ // Load address from PC or SP.
+ if((ins&0xF000u)==0xA000u){
+  const unsigned rd=(ins>>8)&7u;const auto base=(ins&(1u<<11))?registers_[13]:((registers_[15]+2u)&~3u);
+  registers_[rd]=base+((ins&0xffu)<<2);return;
+ }
+ // Adjust stack pointer by a signed multiple of four.
+ if((ins&0xFF00u)==0xB000u){
+  const auto amount=(ins&0x7fu)<<2;
+  if(ins&(1u<<7))registers_[13]-=amount;else registers_[13]+=amount;
+  return;
+ }
+ // Thumb LDMIA/STMIA.
+ if((ins&0xF000u)==0xC000u){
+  const bool load=ins&(1u<<11);const unsigned rn=(ins>>8)&7u;const auto list=static_cast<std::uint8_t>(ins);
+  if(list==0)throw std::runtime_error("Empty Thumb multiple-transfer register list is unsupported");
+  auto address=registers_[rn];
+  for(unsigned r=0;r<8;++r)if(list&(1u<<r)){
+   if(load)registers_[r]=memory_.read32le(address);else memory_.write32le(address,registers_[r]);
+   address+=4u;
+  }
+  registers_[rn]=address;return;
+ }
+ // Thumb long branch with link, two-halfword BL sequence.
+ if((ins&0xF800u)==0xF000u){
+  const auto high=static_cast<std::int32_t>(static_cast<std::int16_t>((ins&0x7ffu)<<5))>>5;
+  registers_[14]=static_cast<std::uint32_t>(static_cast<std::int64_t>(registers_[15])+2+(static_cast<std::int64_t>(high)<<12));
+  return;
+ }
+ if((ins&0xF800u)==0xF800u){
+  const auto target=registers_[14]+((ins&0x7ffu)<<1);
+  registers_[14]=registers_[15]|1u;
+  registers_[15]=target&~1u;return;
+ }
  // PC-relative literal load.
  if((ins&0xF800u)==0x4800u){
   const unsigned rd=(ins>>8)&7u;const auto address=((registers_[15]+2u)&~3u)+((ins&0xffu)<<2);
