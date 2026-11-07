@@ -2,6 +2,7 @@
 #include "firmware/fls_parser.hpp"
 #include "platform/platform.hpp"
 #include "memory/memory.hpp"
+#include "memory/lpddr1.hpp"
 
 #include <exception>
 #include <iostream>
@@ -14,6 +15,7 @@ static void print_help(const char* program) {
         << "Usage:\n"
         << "  " << program << " --help\n"
         << "  " << program << " --platform-info\n"
+        << "  " << program << " --lpddr1-sequence\n"
         << "  " << program << " --inspect-firmware <file.fls>\n"
         << "  " << program << " --analyze-firmware <file.fls> [report.txt]\n"
         << "  " << program << " --inspect-fls-directory <file.fls>\n"
@@ -33,6 +35,16 @@ static void print_platform_info() {
 int main(int argc, char** argv) {
     if (argc == 2 && std::string(argv[1]) == "--help") { print_help(argv[0]); return 0; }
     if (argc == 2 && std::string(argv[1]) == "--platform-info") { print_platform_info(); return 0; }
+    if (argc == 2 && std::string(argv[1]) == "--lpddr1-sequence") {
+        memory::Lpddr1Protocol lpddr;
+        const auto trace = lpddr.initialize();
+        std::cout << "Generic LPDDR1 protocol trace (NOT XMM2150 register programming)\\n";
+        for (std::size_t i = 0; i < trace.size(); ++i)
+            std::cout << (i + 1) << ". " << trace[i] << "\\n";
+        std::cout << "Protocol trace complete: " << (lpddr.ready() ? "ready" : "not ready") << "\\n";
+        std::cout << "No controller registers, physical addresses, or real delays were used.\\n";
+        return 0;
+    }
 
     if (argc == 8 && std::string(argv[1]) == "--load-raw-segment") {
         try {
