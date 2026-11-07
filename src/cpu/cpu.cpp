@@ -5,12 +5,89 @@ constexpr std::uint32_t N=1u<<31, Z=1u<<30, C=1u<<29, V=1u<<28, NZCV=N|Z|C|V;
 std::uint32_t ror(std::uint32_t x,unsigned n){n&=31u;return n?((x>>n)|(x<<(32u-n))):x;}
 }
 CPU::CPU(Memory& m):memory_(m){}
-void CPU::reset(std::uint32_t entry){registers_.fill(0);cp15_control_=cp15_ttbr0_=cp15_dacr_=cp15_context_id_=0;cpsr_=0xD3;if(entry&1u){cpsr_|=(1u<<5);registers_[15]=entry&~1u;}else registers_[15]=entry;instructions_executed_=0;}
+void CPU::reset(std::uint32_t entry){registers_.fill(0);user_bank_.fill(0);fiq_bank_.fill(0);irq_bank_.fill(0);svc_bank_.fill(0);abort_bank_.fill(0);undefined_bank_.fill(0);spsr_fiq_=spsr_irq_=spsr_svc_=spsr_abort_=spsr_undefined_=0;cp15_control_=cp15_ttbr0_=cp15_dacr_=cp15_context_id_=0;cpsr_=0xD3;if(entry&1u){cpsr_|=(1u<<5);registers_[15]=entry&~1u;}else registers_[15]=entry;instructions_executed_=0;}
 std::uint32_t CPU::getPC()const{return registers_[15];}
 std::uint32_t CPU::get_register(unsigned i)const{if(i>=16)throw std::out_of_range("ARM register index");return registers_[i];}
 void CPU::set_register(unsigned i,std::uint32_t v){if(i>=16)throw std::out_of_range("ARM register index");registers_[i]=v;}
 std::uint32_t CPU::get_cpsr()const{return cpsr_;}
 std::uint64_t CPU::instructions_executed()const noexcept{return instructions_executed_;}
+
+std::uint32_t* CPU::active_spsr(){
+ switch(cpsr_&0x1fu){
+  case 0x11u:return &spsr_fiq_;
+  case 0x12u:return &spsr_irq_;
+  case 0x13u:return &spsr_svc_;
+  case 0x17u:return &spsr_abort_;
+  case 0x1bu:return &spsr_undefined_;
+  default:return nullptr;
+ }
+}
+void CPU::switch_mode(std::uint32_t next){
+ const auto old=cpsr_&0x1fu;
+ const auto valid=[](std::uint32_t m){return m==0x10u||m==0x11u||m==0x12u||m==0x13u||m==0x17u||m==0x1bu||m==0x1fu;};
+ if(!valid(next))throw std::runtime_error("Invalid ARM processor mode");
+ if(old==next)return;
+ if(old==0x11u){for(unsigned i=0;i<7;++i)fiq_bank_[i]=registers_[8u+i];}
+ else{
+  for(unsigned i=0;i<5;++i)user_bank_[i]=registers_[8u+i];
+  if(old==0x10u||old==0x1fu){user_bank_[5]=registers_[13];user_bank_[6]=registers_[14];}
+  else{
+   std::array<std::uint32_t,2>* b=nullptr;
+   if(old==0x12u)b=&irq_bank_;else if(old==0x13u)b=&svc_bank_;else if(old==0x17u)b=&abort_bank_;else if(old==0x1bu)b=&undefined_bank_;
+   if(b){(*b)[0]=registers_[13];(*b)[1]=registers_[14];}
+  }
+ }
+ if(next==0x11u){for(unsigned i=0;i<7;++i)registers_[8u+i]=fiq_bank_[i];}
+ else{
+  for(unsigned i=0;i<5;++i)registers_[8u+i]=user_bank_[i];
+  if(next==0x10u||next==0x1fu){registers_[13]=user_bank_[5];registers_[14]=user_bank_[6];}
+  else{
+   const std::array<std::uint32_t,2>* b=nullptr;
+   if(next==0x12u)b=&irq_bank_;else if(next==0x13u)b=&svc_bank_;else if(next==0x17u)b=&abort_bank_;else if(next==0x1bu)b=&undefined_bank_;
+   if(b){registers_[13]=(*b)[0];registers_[14]=(*b)[1];}
+  }
+ }
+ cpsr_=(cpsr_&~0x1fu)|next;
+}
+void CPU::enter_svc_exception(std::uint32_t return_address){
+ const auto saved=cpsr_;
+ switch_mode(0x13u);
+ spsr_svc_=saved;
+ registers_[14]=return_address;
+ cpsr_=(cpsr_|(1u<<7))&~(1u<<5);
+ registers_[15]=0x08u;
+}
+void CPU::execute_status_transfer(std::uint32_t ins){
+ const bool is_mrs=(ins&(1u<<21))==0;
+ const bool use_spsr=(ins&(1u<<22))!=0;
+ const unsigned rd=(ins>>12)&15u,rm=ins&15u;
+ const auto mode=cpsr_&0x1fu;
+ if(is_mrs){
+  const auto* saved=use_spsr?active_spsr():nullptr;
+  if(use_spsr&&!saved)throw std::runtime_error("MRS SPSR used in a mode without SPSR");
+  if(rd==15u)throw std::runtime_error("MRS with PC destination is unpredictable");
+  registers_[rd]=use_spsr?*saved:cpsr_;return;
+ }
+ const bool immediate=(ins&(1u<<25))!=0;
+ const auto operand=immediate?ror(ins&0xffu,((ins>>8)&15u)*2u):read_operand_register(rm);
+ const unsigned fields=(ins>>16)&15u;
+ std::uint32_t mask=0;
+ if(fields&1u)mask|=0x000000ffu;
+ if(fields&2u)mask|=0x0000ff00u;
+ if(fields&4u)mask|=0x00ff0000u;
+ if(fields&8u)mask|=0xff000000u;
+ if(use_spsr){
+  auto* saved=active_spsr();
+  if(!saved)throw std::runtime_error("MSR SPSR used in a mode without SPSR");
+  *saved=(*saved&~mask)|(operand&mask);return;
+ }
+ if(mode==0x10u)mask&=0xf0000000u;
+ else mask&=0xf00000ffu;
+ const auto old=cpsr_;
+ const auto next=(old&~mask)|(operand&mask);
+ if((mask&0x1fu)!=0u&&(next&0x1fu)!=mode)switch_mode(next&0x1fu);
+ cpsr_=(cpsr_&~mask)|(next&mask);
+}
 std::uint32_t CPU::read_operand_register(unsigned i)const{if(i>=16)throw std::out_of_range("ARM register index");return i==15?registers_[15]+8u:registers_[i];}
 bool CPU::condition_passed(unsigned q)const{
  const bool n=cpsr_&N,z=cpsr_&Z,c=cpsr_&C,v=cpsr_&V;
@@ -26,7 +103,10 @@ void CPU::step(){
  }
  const auto ins=memory_.read32le(address);registers_[15]=address+4u;++instructions_executed_;
  if(!condition_passed(ins>>28))return;
- if((ins&0x0F000010u)==0x0E000010u && ((ins>>8)&15u)==15u)
+ if((ins&0x0FBF0FFFu)==0x010F0000u || (ins&0x0FB0FFF0u)==0x0120F000u || (ins&0x0FB0F000u)==0x0320F000u)
+  execute_status_transfer(ins);
+ else if((ins&0x0F000000u)==0x0F000000u)enter_svc_exception(registers_[15]);
+ else if((ins&0x0F000010u)==0x0E000010u && ((ins>>8)&15u)==15u)
   execute_cp15_transfer(ins);
  else if((ins&0x0FFFFFF0u)==0x012FFF10u){
   const auto target=read_operand_register(ins&15u);
@@ -167,7 +247,20 @@ void CPU::execute_data_processing(std::uint32_t ins){
  case 12:r=a|b;break;case 13:r=b;break;case 14:r=a&~b;break;case 15:r=~b;break;
  default:throw std::runtime_error("Unsupported ARM data-processing opcode");
  }
- const bool test=op>=8&&op<=11;if(!test){if(rd==15)registers_[15]=r;else registers_[rd]=r;}
+ const bool test=op>=8&&op<=11;if(!test){
+  if(rd==15&&s){
+   const auto* saved=active_spsr();
+   if(!saved)throw std::runtime_error("Exception return requested without an SPSR");
+   const auto restored=*saved;
+   const auto target=r;
+   const auto target_mode=restored&0x1fu;
+   if(target_mode!=(cpsr_&0x1fu))switch_mode(target_mode);
+   cpsr_=restored;
+   registers_[15]=(restored&(1u<<5))?(target&~1u):(target&~3u);
+   return;
+  }
+  if(rd==15)registers_[15]=r;else registers_[rd]=r;
+ }
  if(s||test){cpsr_&=~NZCV;if(r&0x80000000u)cpsr_|=N;if(!r)cpsr_|=Z;if(arithmetic){if(carry)cpsr_|=C;if(overflow)cpsr_|=V;}else if(shcarry)cpsr_|=C;}
 }
 void CPU::execute_single_transfer(std::uint32_t ins){
@@ -406,7 +499,7 @@ void CPU::execute_thumb(std::uint16_t ins){
  // Conditional branch.
  if((ins&0xF000u)==0xD000u){
   const unsigned cond=(ins>>8)&15u;
-  if(cond==15u)throw std::runtime_error("Thumb software interrupt is not implemented");
+  if(cond==15u){enter_svc_exception(registers_[15]);return;}
   if(cond==14u)throw std::runtime_error("Reserved Thumb condition code");
   if(condition_passed(cond)){const auto off=static_cast<std::int32_t>(static_cast<std::int8_t>(ins&0xffu))*2;registers_[15]=static_cast<std::uint32_t>(static_cast<std::int64_t>(registers_[15])+2+off);}
   return;
