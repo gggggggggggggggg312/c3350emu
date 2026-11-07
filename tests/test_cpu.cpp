@@ -59,6 +59,18 @@ int main(){
  cpu.set_register(15,0x1040);cpu.set_register(1,0x1121);cpu.step();
  cpu.step();assert(m.read8(0x1303)==3);
  cpu.step();assert(cpu.get_register(3)==3);
+ // ARM halfword/signed transfers and register-controlled LSL.
+ m.write32le(0x1050,0xE1C010B0u); // STRH r1,[r0]
+ m.write32le(0x1054,0xE1D020B0u); // LDRH r2,[r0]
+ m.write32le(0x1058,0xE1D030D0u); // LDRSB r3,[r0]
+ m.write32le(0x105c,0xE1D040F0u); // LDRSH r4,[r0]
+ m.write32le(0x1060,0xE1A05716u); // MOV r5,r6,LSL r7
+ cpu.set_register(0,0x1400);cpu.set_register(1,0x0000ff80u);cpu.set_register(15,0x1050);
+ cpu.step();assert(m.read8(0x1400)==0x80&&m.read8(0x1401)==0xff);
+ cpu.step();assert(cpu.get_register(2)==0xff80u);
+ cpu.step();assert(cpu.get_register(3)==0xffffff80u);
+ cpu.step();assert(cpu.get_register(4)==0xffffff80u);
+ cpu.set_register(6,3);cpu.set_register(7,2);cpu.step();assert(cpu.get_register(5)==12u);
  cpu.set_register(15,0x90000000u);bool threw=false;try{cpu.step();}catch(const std::out_of_range&){threw=true;}assert(threw);
  return 0;
 }
