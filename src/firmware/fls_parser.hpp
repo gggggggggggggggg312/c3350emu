@@ -6,9 +6,11 @@
 #include <string>
 #include <vector>
 
+class Memory;
+
 namespace firmware {
 
-struct FlsInfo {
+struct LoadResult {\n    std::filesystem::path source;\n    std::uint64_t file_offset = 0;\n    std::uint32_t load_address = 0;\n    std::size_t bytes_loaded = 0;\n    std::uint32_t crc32 = 0;\n};\n\nstruct FlsInfo {
     std::filesystem::path path;
     std::uintmax_t file_size = 0;
     std::vector<std::uint8_t> header;
@@ -33,6 +35,16 @@ public:
     static std::string compare_headers_in_directory(
         const std::filesystem::path& directory,
         std::size_t bytes_to_compare = 4096,
+        std::uintmax_t max_file_size = 256ULL * 1024ULL * 1024ULL);
+
+    // Loads an explicitly selected byte range into already-mapped writable RAM.
+    // This is a raw segment staging operation, not an automatic FLS decoder.
+    static LoadResult load_raw_segment(
+        const std::filesystem::path& path,
+        std::uint64_t file_offset,
+        std::size_t length,
+        std::uint32_t load_address,
+        Memory& memory,
         std::uintmax_t max_file_size = 256ULL * 1024ULL * 1024ULL);
 
     // Produces a dependency-free forensic report. Findings are candidates,
