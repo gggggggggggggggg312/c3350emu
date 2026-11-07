@@ -29,12 +29,13 @@ jobs:
         run: |
           New-Item -ItemType Directory -Force -Path dist | Out-Null
           Copy-Item build/Release/c3350emu.exe dist/
+          Copy-Item build/Release/c3350emu-gui.exe dist/
           @"
           C3350EMU
           ========
           This is an early research build. It can inspect basic firmware file
-          metadata and header bytes. It does not decode the complete FLS format
-          or execute the Samsung GT-C3350 firmware yet.
+          metadata and header bytes, plus a Windows GUI for raw-image experiments.
+          It does not automatically decode FLS files or provide a verified phone boot.
           "@ | Set-Content dist/README.txt
       - name: Upload Windows package
         uses: actions/upload-artifact@v4
