@@ -6,42 +6,55 @@ std::uint32_t ror(std::uint32_t x,unsigned n){n&=31u;return n?((x>>n)|(x<<(32u-n
 }
 CPU::CPU(Memory& m):memory_(m){}
 void CPU::reset(std::uint32_t entry){registers_.fill(0);user_bank_.fill(0);fiq_bank_.fill(0);irq_bank_.fill(0);svc_bank_.fill(0);abort_bank_.fill(0);undefined_bank_.fill(0);spsr_fiq_=spsr_irq_=spsr_svc_=spsr_abort_=spsr_undefined_=0;cp15_control_=cp15_ttbr0_=cp15_dacr_=cp15_context_id_=0;cpsr_=0xD3;if(entry&1u){cpsr_|=(1u<<5);registers_[15]=entry&~1u;}else registers_[15]=entry;instructions_executed_=0;}
+void CPU::invalidate_tlb_all(){for(auto& entry:tlb_)entry.valid=false;}
+void CPU::invalidate_tlb_mva(std::uint32_t address){
+ const auto page=address>>12;
+ for(auto& entry:tlb_)if(entry.valid&&entry.virtual_page==page)entry.valid=false;
+}
 std::uint32_t CPU::translate_address(std::uint32_t va,bool write)const{
  if((cp15_control_&1u)==0u)return va;
- const std::uint32_t l1_base=cp15_ttbr0_&0xffffc000u;
- const std::uint32_t l1=memory_.read32le(l1_base+((va>>20)&0xfffu)*4u);
+ const std::uint32_t page=va>>12;
+ const std::uint32_t ttbr=cp15_ttbr0_&0xffffc000u;
+ const unsigned slot=page%tlb_.size();
+ auto& cached=tlb_[slot];
+ if(cached.valid&&cached.virtual_page==page&&cached.ttbr==ttbr&&cached.context_id==cp15_context_id_){
+  const unsigned da=(cp15_dacr_>>(cached.domain*2u))&3u;
+  if(da==0u||da==2u)throw std::runtime_error("MMU domain fault");
+  const bool privileged=(cpsr_&0x1fu)!=0x10u;
+  if(da!=3u){
+   bool allowed=false;
+   if(cached.ap==1u)allowed=privileged;
+   else if(cached.ap==2u)allowed=privileged||!write;
+   else if(cached.ap==3u)allowed=true;
+   if(!allowed)throw std::runtime_error("MMU page/section permission fault");
+  }
+  return cached.physical_page|(va&0xfffu);
+ }
+ const std::uint32_t l1=memory_.read32le(ttbr+((va>>20)&0xfffu)*4u);
  const unsigned l1_type=l1&3u;
  std::uint32_t physical=0;
- unsigned domain=(l1>>5)&15u;
- unsigned ap=0;
- const bool privileged=(cpsr_&0x1fu)!=0x10u;
+ unsigned domain=(l1>>5)&15u,ap=0;
  if(l1_type==2u){
   ap=(l1>>10)&3u;
   physical=(l1&0xfff00000u)|(va&0x000fffffu);
  }else if(l1_type==1u){
-  // Coarse page table: 256 second-level descriptors, each covering 4 KB.
   const std::uint32_t l2_base=l1&0xfffffc00u;
   const std::uint32_t l2=memory_.read32le(l2_base+(((va>>12)&0xffu)*4u));
-  const unsigned l2_type=l2&3u;
-  if(l2_type==1u){
-   // Large page: 64 KB, with four 16 KB permission subregions.
-   const unsigned subpage=(va>>14)&3u;
-   ap=(l2>>(4u+subpage*2u))&3u;
+  const unsigned type=l2&3u;
+  if(type==1u){
+   ap=(l2>>(4u+(((va>>14)&3u)*2u)))&3u;
    physical=(l2&0xffff0000u)|(va&0xffffu);
-  }else if(l2_type==2u||l2_type==3u){
-   // Small page: 4 KB, with four 1 KB permission subregions.
-   const unsigned subpage=(va>>10)&3u;
-   ap=(l2>>(4u+subpage*2u))&3u;
+  }else if(type==2u||type==3u){
+   ap=(l2>>(4u+(((va>>10)&3u)*2u)))&3u;
    physical=(l2&0xfffff000u)|(va&0xfffu);
-  }else{
-   throw std::runtime_error("MMU translation fault: invalid second-level descriptor");
-  }
- }else{
-  throw std::runtime_error("MMU translation fault: invalid first-level descriptor");
- }
- const unsigned domain_access=(cp15_dacr_>>(domain*2u))&3u;
- if(domain_access==0u||domain_access==2u)throw std::runtime_error("MMU domain fault");
- if(domain_access!=3u){
+  }else throw std::runtime_error("MMU translation fault: invalid second-level descriptor");
+ }else throw std::runtime_error("MMU translation fault: invalid first-level descriptor");
+ cached.valid=true;cached.virtual_page=page;cached.physical_page=physical&0xfffff000u;
+ cached.ttbr=ttbr;cached.context_id=cp15_context_id_;cached.domain=domain;cached.ap=ap;
+ const unsigned da=(cp15_dacr_>>(domain*2u))&3u;
+ if(da==0u||da==2u)throw std::runtime_error("MMU domain fault");
+ const bool privileged=(cpsr_&0x1fu)!=0x10u;
+ if(da!=3u){
   bool allowed=false;
   if(ap==1u)allowed=privileged;
   else if(ap==2u)allowed=privileged||!write;
