@@ -14,7 +14,8 @@ static void print_help(const char* program) {
         << "  " << program << " --platform-info\n"
         << "  " << program << " --inspect-firmware <file.fls>\n"
         << "  " << program << " --analyze-firmware <file.fls> [report.txt]\n"
-        << "  " << program << " --inspect-fls-directory <file.fls>\n\n"
+        << "  " << program << " --inspect-fls-directory <file.fls>\n"
+        << "  " << program << " --compare-firmware-set <directory> [bytes]\n\n"
         << "The native analyzer creates a text report without Python or extra dependencies.\n"
         << "The directory scanner reports candidate 32-byte records; its layout is not yet validated.\n"
         << "Its pattern matches are research leads, not verified FLS fields or addresses.\n";
@@ -41,7 +42,7 @@ int main(int argc, char** argv) {
             std::cout << firmware::FlsParser::compare_headers_in_directory(argv[2], bytes);
             return 0;
         } catch (const std::exception& e) {
-            std::cerr << "Header comparison failed: " << e.what() << "\\n";
+            std::cerr << "Header comparison failed: " << e.what() << "\n";
             return 1;
         }
     }
