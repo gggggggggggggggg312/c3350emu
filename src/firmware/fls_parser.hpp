@@ -22,6 +22,12 @@ public:
                            std::size_t header_size = 64,
                            std::uintmax_t max_file_size = 256ULL * 1024ULL * 1024ULL);
 
+    // Prints candidate 32-byte directory records based on the observed sample pattern.
+    // This is a heuristic, not a validated Samsung FLS specification.
+    static std::string inspect_directory(
+        const std::filesystem::path& path,
+        std::uintmax_t max_file_size = 256ULL * 1024ULL * 1024ULL);
+
     // Produces a dependency-free forensic report. Findings are candidates,
     // not a decoded Samsung FLS specification.
     static std::filesystem::path analyze(
