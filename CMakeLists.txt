@@ -12,6 +12,7 @@ add_library(c3350_core
     src/memory/memory.cpp
     src/memory/lpddr1.cpp
     src/platform/platform.cpp
+    src/platform/battery.cpp
 )
 
 target_include_directories(c3350_core PUBLIC
@@ -45,6 +46,10 @@ if(BUILD_TESTING)
     add_executable(test_platform tests/test_platform.cpp)
     target_link_libraries(test_platform PRIVATE c3350_core)
     add_test(NAME platform_tests COMMAND test_platform)
+
+    add_executable(test_battery tests/test_battery.cpp)
+    target_link_libraries(test_battery PRIVATE c3350_core)
+    add_test(NAME battery_tests COMMAND test_battery)
 
     add_executable(test_cpu tests/test_cpu.cpp)
     target_link_libraries(test_cpu PRIVATE c3350_core)
