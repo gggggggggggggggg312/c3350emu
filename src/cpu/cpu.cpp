@@ -5,7 +5,7 @@ constexpr std::uint32_t N=1u<<31, Z=1u<<30, C=1u<<29, V=1u<<28, NZCV=N|Z|C|V;
 std::uint32_t ror(std::uint32_t x,unsigned n){n&=31u;return n?((x>>n)|(x<<(32u-n))):x;}
 }
 CPU::CPU(Memory& m):memory_(m){}
-void CPU::reset(std::uint32_t entry){registers_.fill(0);user_bank_.fill(0);fiq_bank_.fill(0);irq_bank_.fill(0);svc_bank_.fill(0);abort_bank_.fill(0);undefined_bank_.fill(0);spsr_fiq_=spsr_irq_=spsr_svc_=spsr_abort_=spsr_undefined_=0;cp15_control_=cp15_ttbr0_=cp15_dacr_=cp15_context_id_=0;invalidate_tlb_all();invalidate_instruction_cache(0u,true);invalidate_data_cache(0u,true);cpsr_=0xD3;if(entry&1u){cpsr_|=(1u<<5);registers_[15]=entry&~1u;}else registers_[15]=entry;instructions_executed_=0;}
+void CPU::reset(std::uint32_t entry){registers_.fill(0);user_bank_.fill(0);fiq_bank_.fill(0);irq_bank_.fill(0);svc_bank_.fill(0);abort_bank_.fill(0);undefined_bank_.fill(0);spsr_fiq_=spsr_irq_=spsr_svc_=spsr_abort_=spsr_undefined_=0;cp15_control_=cp15_ttbr0_=cp15_dacr_=cp15_context_id_=0;invalidate_tlb_all();invalidate_instruction_cache(0u,true);invalidate_data_cache(0u,true);cpsr_=0xD3;if(entry&1u){cpsr_|=(1u<<5);registers_[15]=entry&~1u;}else registers_[15]=entry;instructions_executed_=0;exclusive_valid_=false;exclusive_address_=0;}
 void CPU::invalidate_tlb_all(){for(auto& entry:tlb_)entry.valid=false;}
 void CPU::invalidate_tlb_mva(std::uint32_t address){
  const auto page=address>>12;
@@ -76,6 +76,7 @@ std::uint8_t CPU::cached_read8(std::uint32_t physical,bool instruction)const{
  return line.bytes[physical&31u];
 }
 void CPU::cached_write8(std::uint32_t physical,std::uint8_t value){
+ exclusive_valid_=false;
  memory_.write8(physical,value);
  if((cp15_control_&(1u<<2))!=0){
   const std::uint32_t base=physical&~31u;auto& line=data_cache_[(base>>5)%CacheLineCount];
@@ -219,6 +220,7 @@ void CPU::step(){
   if(byte){const auto old=read_virtual8(address);write_virtual8(address,static_cast<std::uint8_t>(source));registers_[rd]=old;}
   else{const auto old=read_virtual32(address);write_virtual32(address,source);registers_[rd]=old;}
  }
+ else if((ins&0x0FF00FFFu)==0x01900F9Fu || (ins&0x0FF00FF0u)==0x01800F90u)execute_exclusive(ins);
  else if((ins&0x0F8000F0u)==0x00800090u)execute_long_multiply(ins);
   else if((ins&0x0FC000F0u)==0x00000090u)execute_multiply(ins);
  else if((ins&0x0E000090u)==0x00000090u)execute_halfword_transfer(ins);
@@ -281,6 +283,27 @@ void CPU::execute_branch(std::uint32_t ins){
  const auto off=static_cast<std::int32_t>(ins<<8)>>6;const auto target=registers_[15]+static_cast<std::uint32_t>(off);
  if(ins&(1u<<24))registers_[14]=registers_[15]-4u;
  registers_[15]=target;
+}
+void CPU::execute_exclusive(std::uint32_t ins){
+ const bool load=(ins&0x0ff00fffu)==0x01900f9fu;
+ const unsigned rn=(ins>>16)&15u,rd=(ins>>12)&15u;
+ if(rn==15u||rd==15u)throw std::runtime_error("Exclusive transfer with PC register is unpredictable");
+ const auto address=registers_[rn];
+ if(address&3u)throw std::runtime_error("Unaligned word exclusive access");
+ const auto physical=translate_address(address,!load);
+ if(load){
+  const auto value=read_virtual32(address);
+  registers_[rd]=value;
+  exclusive_address_=physical&~3u;
+  exclusive_valid_=true;
+ }else{
+  const unsigned rt=ins&15u;
+  if(rt==15u)throw std::runtime_error("STREX source PC register is unpredictable");
+  const bool success=exclusive_valid_&&exclusive_address_==(physical&~3u);
+  exclusive_valid_=false;
+  if(success)write_virtual32(address,registers_[rt]);
+  registers_[rd]=success?0u:1u;
+ }
 }
 void CPU::execute_long_multiply(std::uint32_t ins){
  const bool signed_multiply=(ins&(1u<<22))!=0;
