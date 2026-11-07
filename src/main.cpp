@@ -118,18 +118,51 @@ int main(int argc, char** argv) {
             std::cout << "Starting CPU at 0x" << std::hex << plan.entry
                       << (plan.entry&1u?" (Thumb)":" (ARM)")
                       << "\\nInstruction/step limit: " << std::dec << plan.instruction_limit << "\\n";
+            std::ofstream trace;
+            if(!plan.trace_file.empty()) {
+                trace.open(plan.trace_file,std::ios::binary);
+                if(!trace)throw std::runtime_error("Cannot create execution trace: "+plan.trace_file.string());
+                trace << "step,pc,state,opcode,stage,source_offset,next_pc,cpsr\n";
+            }
             std::string reason="execution limit reached";
             std::uint64_t steps=0;
             while(steps<plan.instruction_limit &&
                   cpu.instructions_executed()<plan.instruction_limit) {
-                ++steps;
+                const auto pc=cpu.getPC();
+                const auto cpsr=cpu.get_cpsr();
+                const bool thumb=(cpsr&(1u<<5))!=0;
+                std::uint32_t opcode=0;
+                try { opcode=thumb?(static_cast<std::uint32_t>(memory.read8(pc)) |
+                    (static_cast<std::uint32_t>(memory.read8(pc+1u))<<8)):memory.read32le(pc); }
+                catch(const std::exception&) {}
+                std::string stage="UNMAPPED";std::uint64_t source_offset=0;
+                for(const auto& segment:plan.segments) {
+                    const auto address=pc&~1u;
+                    if(address>=segment.load_address && static_cast<std::uint64_t>(address)<
+                       static_cast<std::uint64_t>(segment.load_address)+segment.length) {
+                        stage=segment.file.filename().string();
+                        source_offset=segment.offset+(address-segment.load_address);break;
+                    }
+                }
+                ++steps;std::string step_error;
                 try { cpu.step(); }
-                catch(const std::exception& error) { reason=error.what(); break; }
+                catch(const std::exception& error) { reason=error.what();step_error=reason; }
+                if(trace) {
+                    trace<<steps<<",0x"<<std::hex<<pc<<","<<(thumb?"THUMB":"ARM")
+                         <<",0x"<<opcode<<",\""<<stage<<"\",0x"<<source_offset
+                         <<",0x"<<cpu.getPC()<<",0x"<<cpu.get_cpsr()<<std::dec<<"\n";
+                    if(!trace)throw std::runtime_error("Failed writing execution trace.");
+                }
+                if(!step_error.empty())break;
             }
-            std::cout << "\\nExecution stopped: " << reason
-                      << "\\nSteps: " << steps
-                      << "\\nInstructions completed: " << cpu.instructions_executed()
-                      << "\\nPC: 0x" << std::hex << cpu.getPC() << "\\n";
+            if(trace) {
+                trace.flush();if(!trace)throw std::runtime_error("Failed flushing execution trace.");
+                std::cout<<"Execution trace: "<<plan.trace_file.string()<<"\n";
+            }
+            std::cout << "\nExecution stopped: " << reason
+                      << "\nSteps: " << steps
+                      << "\nInstructions completed: " << cpu.instructions_executed()
+                      << "\nPC: 0x" << std::hex << cpu.getPC() << "\n";
             for(unsigned i=0;i<16;++i)
                 std::cout << "R" << std::dec << i << "=0x" << std::hex
                           << cpu.get_register(i) << ((i%4==3)?"\\n":"  ");
