@@ -5,7 +5,7 @@ constexpr std::uint32_t N=1u<<31, Z=1u<<30, C=1u<<29, V=1u<<28, NZCV=N|Z|C|V;
 std::uint32_t ror(std::uint32_t x,unsigned n){n&=31u;return n?((x>>n)|(x<<(32u-n))):x;}
 }
 CPU::CPU(Memory& m):memory_(m){}
-void CPU::reset(std::uint32_t entry){registers_.fill(0);cpsr_=0xD3;if(entry&1u){cpsr_|=(1u<<5);registers_[15]=entry&~1u;}else registers_[15]=entry;instructions_executed_=0;}
+void CPU::reset(std::uint32_t entry){registers_.fill(0);cp15_control_=cp15_ttbr0_=cp15_dacr_=cp15_context_id_=0;cpsr_=0xD3;if(entry&1u){cpsr_|=(1u<<5);registers_[15]=entry&~1u;}else registers_[15]=entry;instructions_executed_=0;}
 std::uint32_t CPU::getPC()const{return registers_[15];}
 std::uint32_t CPU::get_register(unsigned i)const{if(i>=16)throw std::out_of_range("ARM register index");return registers_[i];}
 void CPU::set_register(unsigned i,std::uint32_t v){if(i>=16)throw std::out_of_range("ARM register index");registers_[i]=v;}
@@ -26,7 +26,9 @@ void CPU::step(){
  }
  const auto ins=memory_.read32le(address);registers_[15]=address+4u;++instructions_executed_;
  if(!condition_passed(ins>>28))return;
- if((ins&0x0FFFFFF0u)==0x012FFF10u){
+ if((ins&0x0F000010u)==0x0E000010u && ((ins>>8)&15u)==15u)
+  execute_cp15_transfer(ins);
+ else if((ins&0x0FFFFFF0u)==0x012FFF10u){
   const auto target=read_operand_register(ins&15u);
   if(target&1u){cpsr_|=(1u<<5);registers_[15]=target&~1u;}
   else{cpsr_&=~(1u<<5);registers_[15]=target&~3u;}
@@ -58,6 +60,30 @@ void CPU::step(){
  else if((ins&0x0C000000u)==0x04000000u)execute_single_transfer(ins);
  else if((ins&0x0C000000u)==0||((ins&0x0C000000u)==0x02000000u))execute_data_processing(ins);
  else throw std::runtime_error("Unsupported ARM instruction encoding");
+}
+void CPU::execute_cp15_transfer(std::uint32_t ins){
+ const bool read=(ins&(1u<<20))!=0;
+ const unsigned opc1=(ins>>21)&7u,crn=(ins>>16)&15u,rd=(ins>>12)&15u;
+ const unsigned opc2=(ins>>5)&7u,crm=ins&15u;
+ if(opc1!=0u)throw std::runtime_error("Unsupported CP15 opc1 value");
+ std::uint32_t* value=nullptr;
+ if(crn==1u&&crm==0u&&opc2==0u)value=&cp15_control_;
+ else if(crn==2u&&crm==0u&&opc2==0u)value=&cp15_ttbr0_;
+ else if(crn==3u&&crm==0u&&opc2==0u)value=&cp15_dacr_;
+ else if(crn==13u&&crm==0u&&opc2==0u)value=&cp15_context_id_;
+ else if(crn==0u&&crm==0u&&opc2==0u){
+  if(!read)throw std::runtime_error("CP15 MIDR is read-only");
+  // ARM1176JZF-S r0p7 identification value; this is a selectable CPU model,
+  // not proof that every GT-C3350 board uses this exact core revision.
+  const std::uint32_t midr=0x410FB767u;
+  if(rd==15u)cpsr_=(cpsr_&~NZCV)|(midr&NZCV);
+  else registers_[rd]=midr;
+  return;
+ }else throw std::runtime_error("Unsupported CP15 register encoding");
+ if(read){
+  if(rd==15u)cpsr_=(cpsr_&~NZCV)|(*value&NZCV);
+  else registers_[rd]=*value;
+ }else *value=read_operand_register(rd);
 }
 void CPU::execute_branch(std::uint32_t ins){
  const auto off=static_cast<std::int32_t>(ins<<8)>>6;const auto target=registers_[15]+static_cast<std::uint32_t>(off);
