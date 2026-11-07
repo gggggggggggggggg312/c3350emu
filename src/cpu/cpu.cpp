@@ -32,6 +32,7 @@ void CPU::step(){
   else{cpsr_&=~(1u<<5);registers_[15]=target&~3u;}
  }
  else if((ins&0x0FC000F0u)==0x00000090u)execute_multiply(ins);
+ else if((ins&0x0E000090u)==0x00000090u)execute_halfword_transfer(ins);
  else if((ins&0x0E000000u)==0x08000000u)execute_block_transfer(ins);
  else if((ins&0x0E000000u)==0x0A000000u)execute_branch(ins);
  else if((ins&0x0C000000u)==0x04000000u)execute_single_transfer(ins);
@@ -62,13 +63,22 @@ void CPU::execute_data_processing(std::uint32_t ins){
  std::uint32_t b=0;bool shcarry=cpsr_&C;
  if(imm){const unsigned rot=((ins>>8)&15)*2;b=ror(ins&255u,rot);if(rot)shcarry=b>>31;}
  else{
-  if(ins&(1u<<4))throw std::runtime_error("Register-specified shifts not implemented");
-  const unsigned rm=ins&15,type=(ins>>5)&3,amount=(ins>>7)&31;const auto val=read_operand_register(rm);
-  if(!amount)b=val;
-  else if(type==0){b=val<<amount;shcarry=(val>>(32-amount))&1u;}
-  else if(type==1){b=val>>amount;shcarry=(val>>(amount-1))&1u;}
-  else if(type==2){b=static_cast<std::uint32_t>(static_cast<std::int32_t>(val)>>amount);shcarry=(val>>(amount-1))&1u;}
-  else{b=ror(val,amount);shcarry=b>>31;}
+  const unsigned rm=ins&15,type=(ins>>5)&3;const auto val=read_operand_register(rm);
+  if(ins&(1u<<4)){
+   const unsigned rs=(ins>>8)&15;const unsigned amount=read_operand_register(rs)&0xffu;
+   if(amount==0)b=val;
+   else if(type==0){if(amount<32){b=val<<amount;shcarry=((val>>(32u-amount))&1u)!=0;}else if(amount==32){b=0;shcarry=(val&1u)!=0;}else{b=0;shcarry=false;}}
+   else if(type==1){if(amount<32){b=val>>amount;shcarry=((val>>(amount-1u))&1u)!=0;}else if(amount==32){b=0;shcarry=(val>>31)!=0;}else{b=0;shcarry=false;}}
+   else if(type==2){if(amount<32){b=static_cast<std::uint32_t>(static_cast<std::int32_t>(val)>>amount);shcarry=((val>>(amount-1u))&1u)!=0;}else{b=(val&0x80000000u)?0xffffffffu:0;shcarry=(val>>31)!=0;}}
+   else {const unsigned n=amount&31u;if(n==0){b=val;shcarry=(val>>31)!=0;}else{b=ror(val,n);shcarry=(b>>31)!=0;}}
+  }else{
+   const unsigned amount=(ins>>7)&31u;
+   if(!amount)b=val;
+   else if(type==0){b=val<<amount;shcarry=((val>>(32u-amount))&1u)!=0;}
+   else if(type==1){b=val>>amount;shcarry=((val>>(amount-1u))&1u)!=0;}
+   else if(type==2){b=static_cast<std::uint32_t>(static_cast<std::int32_t>(val)>>amount);shcarry=((val>>(amount-1u))&1u)!=0;}
+   else{b=ror(val,amount);shcarry=(b>>31)!=0;}
+  }
  }
  const std::uint32_t a=read_operand_register(rn);std::uint32_t r=0;bool arithmetic=false,carry=false,overflow=false;
  switch(op){
@@ -92,6 +102,27 @@ void CPU::execute_single_transfer(std::uint32_t ins){
  if(load){const auto value=byte?memory_.read8(address):memory_.read32le(address);if(rd==15)registers_[15]=value;else registers_[rd]=value;}
  else{const auto value=read_operand_register(rd);if(byte)memory_.write8(address,std::uint8_t(value));else memory_.write32le(address,value);}
  if(!pre||wb)registers_[rn]=adjusted;
+}
+
+void CPU::execute_halfword_transfer(std::uint32_t ins){
+ const bool pre=ins&(1u<<24),up=ins&(1u<<23),immediate=ins&(1u<<22),writeback=ins&(1u<<21),load=ins&(1u<<20);
+ const unsigned rn=(ins>>16)&15u,rd=(ins>>12)&15u,type=(ins>>5)&3u;
+ if(type==0u)throw std::runtime_error("Invalid ARM halfword-transfer type");
+ if(!load&&type!=1u)throw std::runtime_error("Signed ARM transfer is load-only");
+ const std::uint32_t offset=immediate?(((ins>>8)&15u)<<4)|(ins&15u):(ins&15u);
+ const auto base=read_operand_register(rn),adjusted=up?base+offset:base-offset,address=pre?adjusted:base;
+ const auto read16=[this](std::uint32_t a){return static_cast<std::uint16_t>(memory_.read8(a)|(static_cast<std::uint16_t>(memory_.read8(a+1u))<<8));};
+ if(load){
+  std::uint32_t value=0;
+  if(type==1u)value=read16(address);
+  else if(type==2u)value=static_cast<std::uint32_t>(static_cast<std::int32_t>(static_cast<std::int8_t>(memory_.read8(address))));
+  else value=static_cast<std::uint32_t>(static_cast<std::int32_t>(static_cast<std::int16_t>(read16(address))));
+  if(rd==15u)registers_[15]=value&~3u;else registers_[rd]=value;
+ }else{
+  const auto value=read_operand_register(rd);
+  memory_.write8(address,static_cast<std::uint8_t>(value));memory_.write8(address+1u,static_cast<std::uint8_t>(value>>8));
+ }
+ if(!pre||writeback)registers_[rn]=adjusted;
 }
 
 void CPU::execute_block_transfer(std::uint32_t ins){
