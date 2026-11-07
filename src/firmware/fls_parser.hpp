@@ -28,6 +28,13 @@ public:
         const std::filesystem::path& path,
         std::uintmax_t max_file_size = 256ULL * 1024ULL * 1024ULL);
 
+    // Compares the first N bytes of every .fls file in a directory.
+    // Reports the shared prefix and first differing byte for each pair.
+    static std::string compare_headers_in_directory(
+        const std::filesystem::path& directory,
+        std::size_t bytes_to_compare = 4096,
+        std::uintmax_t max_file_size = 256ULL * 1024ULL * 1024ULL);
+
     // Produces a dependency-free forensic report. Findings are candidates,
     // not a decoded Samsung FLS specification.
     static std::filesystem::path analyze(
