@@ -140,7 +140,10 @@ int main(int argc, char** argv) {
             if (!length || ram_base > 0xffffffffu || load_address > 0xffffffffu ||
                 entry > 0xffffffffu || !ram_size ||
                 ram_size > std::numeric_limits<std::size_t>::max() ||
-                ram_base + ram_size > (std::uint64_t{1} << 32) || !limit)
+                length > std::numeric_limits<std::size_t>::max() ||
+                ram_base + ram_size > (std::uint64_t{1} << 32) ||
+                load_address < ram_base || load_address > ram_base + ram_size ||
+                length > ram_base + ram_size - load_address || !limit)
                 throw std::runtime_error("Address, size, or instruction limit is out of range.");
             const bool thumb = (entry & 1u) != 0;
             const auto aligned_entry = entry & ~std::uint64_t{1};
