@@ -1,6 +1,7 @@
 #include "cpu/cpu.hpp"
 #include "firmware/fls_parser.hpp"
 #include "platform/platform.hpp"
+#include "platform/battery.hpp"
 #include "memory/memory.hpp"
 #include "memory/lpddr1.hpp"
 
@@ -58,6 +59,34 @@ int main(int argc, char** argv) {
         std::cout << "Protocol trace complete: " << (lpddr.ready() ? "ready" : "not ready") << "\n";
         std::cout << "No controller registers, physical addresses, or real delays were used.\n";
         return 0;
+    }
+
+    if (argc == 5 && std::string(argv[1]) == "--battery-demo") {
+        try {
+            const auto percent = parse_number(argv[2], "battery percentage");
+            const auto seconds = parse_number(argv[4], "elapsed seconds");
+            if (percent > 100u || seconds > 86400000u)
+                throw std::runtime_error("Battery percentage must be 0-100 and time <= 24 days.");
+            const std::string mode(argv[3]);
+            if (mode != "charge" && mode != "discharge")
+                throw std::runtime_error("Mode must be charge or discharge.");
+            platform::Battery battery(1000u, static_cast<std::uint8_t>(percent));
+            battery.set_charging(mode == "charge");
+            battery.advance_seconds(static_cast<std::uint32_t>(seconds));
+            std::cout << "C3350EMU simulated battery\\n"
+                      << "Charge: " << unsigned(battery.percentage()) << "%\\n"
+                      << "Voltage estimate: " << battery.voltage_mv() << " mV\\n"
+                      << "Remaining: " << battery.remaining_mah() << " / "
+                      << battery.capacity_mah() << " mAh\\n"
+                      << "State: " << (battery.charging() ? "charging" :
+                          (battery.full() ? "full" : "discharging")) << "\\n"
+                      << "Model: provisional 1000 mAh, 300 mA charge / 180 mA discharge.\\n"
+                      << "This is simulated telemetry, not measured GT-C3350 hardware data.\\n";
+            return 0;
+        } catch (const std::exception& error) {
+            std::cerr << "Battery simulation failed: " << error.what() << "\\n";
+            return 1;
+        }
     }
 
     if (argc == 7 && std::string(argv[1]) == "--run-raw") {
