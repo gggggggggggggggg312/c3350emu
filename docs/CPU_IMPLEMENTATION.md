@@ -56,3 +56,6 @@ ctest --test-dir build --output-on-failure
 ## ARM-to-Thumb BLX immediate
 
 The ARM interpreter supports the unconditional BLX-immediate encoding. It calculates the signed PC-relative target including the H bit, writes the ARM return address to LR, switches CPSR to Thumb state, and continues at the halfword-aligned target. This is a useful ARMv5T interworking path for mixed ARM/Thumb boot code; it does not establish that a particular C3350 firmware image uses this instruction.
+
+
+The interpreter also supports BLX-register in ARM state and the Thumb high-register BLX form. Both preserve the caller's instruction-set state in LR and select the target state from the target address bit 0. These paths are tested with ARM-to-Thumb, Thumb-to-ARM, and return transitions.
