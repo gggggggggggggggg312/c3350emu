@@ -23,11 +23,19 @@ std::uint32_t CPU::translate_address(std::uint32_t va,bool write)const{
   const std::uint32_t l2_base=l1&0xfffffc00u;
   const std::uint32_t l2=memory_.read32le(l2_base+(((va>>12)&0xffu)*4u));
   const unsigned l2_type=l2&3u;
-  if(l2_type!=2u&&l2_type!=3u)
-   throw std::runtime_error("MMU translation fault: unsupported or invalid second-level descriptor");
-  const unsigned subpage=(va>>10)&3u;
-  ap=(l2>>(4u+subpage*2u))&3u;
-  physical=(l2&0xfffff000u)|(va&0xfffu);
+  if(l2_type==1u){
+   // Large page: 64 KB, with four 16 KB permission subregions.
+   const unsigned subpage=(va>>14)&3u;
+   ap=(l2>>(4u+subpage*2u))&3u;
+   physical=(l2&0xffff0000u)|(va&0xffffu);
+  }else if(l2_type==2u||l2_type==3u){
+   // Small page: 4 KB, with four 1 KB permission subregions.
+   const unsigned subpage=(va>>10)&3u;
+   ap=(l2>>(4u+subpage*2u))&3u;
+   physical=(l2&0xfffff000u)|(va&0xfffu);
+  }else{
+   throw std::runtime_error("MMU translation fault: invalid second-level descriptor");
+  }
  }else{
   throw std::runtime_error("MMU translation fault: invalid first-level descriptor");
  }
