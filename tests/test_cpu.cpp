@@ -179,6 +179,17 @@ int main(){
  cpu.step();assert(cpu.get_register(0)==7u);
  cpu.step();assert((cpu.get_cpsr()&(1u<<5))==0&&cpu.getPC()==0x1304u);
  cpu.step();assert(cpu.get_register(1)==9u);
+ // BLX register works in ARM and Thumb state and records the return state.
+ m.write32le(0x1320u,0xE12FFF31u); // BLX r1 from ARM
+ m.write32le(0x1340u,0xE12FFF1Eu); // BX lr back to Thumb caller
+ m.write8(0x1310u,0x88u);m.write8(0x1311u,0x47u); // Thumb BLX r1
+ cpu.reset(0x1320u);cpu.set_register(1,0x1311u);cpu.step();
+ assert((cpu.get_cpsr()&(1u<<5))!=0&&cpu.getPC()==0x1310u);
+ assert(cpu.get_register(14)==0x1324u);
+ cpu.set_register(1,0x1340u);cpu.step();
+ assert((cpu.get_cpsr()&(1u<<5))==0&&cpu.getPC()==0x1340u);
+ assert(cpu.get_register(14)==0x1313u);
+ cpu.step();assert((cpu.get_cpsr()&(1u<<5))!=0&&cpu.getPC()==0x1312u);
  cpu.set_register(15,0x90000000u);bool threw=false;try{cpu.step();}catch(const std::out_of_range&){threw=true;}assert(threw);
  // ARM MMU: program TTBR0, DACR and SCTLR, then fetch and access data
  // through a virtual section mapped to a different physical section.
