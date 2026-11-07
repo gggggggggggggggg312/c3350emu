@@ -11,6 +11,7 @@ Current functionality:
 - Provisional GT-C3350 hardware research profile, available with --platform-info.
 - Conservative FLS file inspection: file size and raw header bytes.
 - Python firmware inspector: SHA-256, header dump, and printable-string sampling.
+- FlashTool E2 session-log analyzer: extracts item names, downloader regions, checksum/verification results and transfer times from text logs.
 - Basic 32-bit address-space memory map with read/write permissions.
 - Automated C++ tests through CTest and GitHub Actions.
 - Windows and Linux CI builds.
@@ -109,6 +110,19 @@ Pushes and pull requests trigger Windows and Linux builds plus tests. Download t
 - C3350EMU-linux-x64
 
 Artifacts currently expire after 30 days. These are research tools, not a bootable phone emulator.
+
+## Analyze a FlashTool E2 log
+
+Save a FlashTool E2 session log as a text file, then run:
+
+```powershell
+py tools/analyze_flashtool_log.py flash-session.txt
+py tools/analyze_flashtool_log.py flash-session.txt --json
+```
+
+This analyzes the *log*, not the binary FLS container. Downloader region numbers
+are not treated as CPU addresses. See docs/FLASHTOOL_LOG_ANALYSIS.md for the
+observed C3350 evidence and limitations.
 
 ## Firmware files
 
