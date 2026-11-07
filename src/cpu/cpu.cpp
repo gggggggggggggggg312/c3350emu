@@ -5,7 +5,7 @@ constexpr std::uint32_t N=1u<<31, Z=1u<<30, C=1u<<29, V=1u<<28, NZCV=N|Z|C|V;
 std::uint32_t ror(std::uint32_t x,unsigned n){n&=31u;return n?((x>>n)|(x<<(32u-n))):x;}
 }
 CPU::CPU(Memory& m):memory_(m){}
-void CPU::reset(std::uint32_t entry){registers_.fill(0);user_bank_.fill(0);fiq_bank_.fill(0);irq_bank_.fill(0);svc_bank_.fill(0);abort_bank_.fill(0);undefined_bank_.fill(0);spsr_fiq_=spsr_irq_=spsr_svc_=spsr_abort_=spsr_undefined_=0;cp15_control_=cp15_ttbr0_=cp15_dacr_=cp15_context_id_=0;invalidate_tlb_all();cpsr_=0xD3;if(entry&1u){cpsr_|=(1u<<5);registers_[15]=entry&~1u;}else registers_[15]=entry;instructions_executed_=0;}
+void CPU::reset(std::uint32_t entry){registers_.fill(0);user_bank_.fill(0);fiq_bank_.fill(0);irq_bank_.fill(0);svc_bank_.fill(0);abort_bank_.fill(0);undefined_bank_.fill(0);spsr_fiq_=spsr_irq_=spsr_svc_=spsr_abort_=spsr_undefined_=0;cp15_control_=cp15_ttbr0_=cp15_dacr_=cp15_context_id_=0;invalidate_tlb_all();invalidate_instruction_cache(0u,true);invalidate_data_cache(0u,true);cpsr_=0xD3;if(entry&1u){cpsr_|=(1u<<5);registers_[15]=entry&~1u;}else registers_[15]=entry;instructions_executed_=0;}
 void CPU::invalidate_tlb_all(){for(auto& entry:tlb_)entry.valid=false;}
 void CPU::invalidate_tlb_mva(std::uint32_t address){
  const auto page=address>>12;
@@ -63,10 +63,35 @@ std::uint32_t CPU::translate_address(std::uint32_t va,bool write)const{
  }
  return physical;
 }
-std::uint8_t CPU::read_virtual8(std::uint32_t a)const{return memory_.read8(translate_address(a,false));}
-std::uint32_t CPU::read_virtual32(std::uint32_t a)const{return memory_.read32le(translate_address(a,false));}
-void CPU::write_virtual8(std::uint32_t a,std::uint8_t v){memory_.write8(translate_address(a,true),v);}
-void CPU::write_virtual32(std::uint32_t a,std::uint32_t v){memory_.write32le(translate_address(a,true),v);}
+std::uint8_t CPU::cached_read8(std::uint32_t physical,bool instruction)const{
+ const bool enabled=(cp15_control_&(instruction?(1u<<12):(1u<<2)))!=0;
+ if(!enabled)return memory_.read8(physical);
+ auto& cache=instruction?instruction_cache_:data_cache_;
+ const std::uint32_t line_address=physical&~31u;
+ auto& line=cache[(line_address>>5)%CacheLineCount];
+ if(!line.valid||line.tag!=line_address){
+  for(std::size_t i=0;i<line.bytes.size();++i)line.bytes[i]=memory_.read8(line_address+static_cast<std::uint32_t>(i));
+  line.tag=line_address;line.valid=true;
+ }
+ return line.bytes[physical&31u];
+}
+void CPU::cached_write8(std::uint32_t physical,std::uint8_t value){
+ memory_.write8(physical,value);
+ if((cp15_control_&(1u<<2))!=0){
+  const std::uint32_t base=physical&~31u;auto& line=data_cache_[(base>>5)%CacheLineCount];
+  if(line.valid&&line.tag==base)line.bytes[physical&31u]=value;
+ }
+}
+void CPU::invalidate_instruction_cache(std::uint32_t address,bool all){
+ for(auto& line:instruction_cache_)if(all||(line.valid&&line.tag==(address&~31u)))line.valid=false;
+}
+void CPU::invalidate_data_cache(std::uint32_t address,bool all){
+ for(auto& line:data_cache_)if(all||(line.valid&&line.tag==(address&~31u)))line.valid=false;
+}
+std::uint8_t CPU::read_virtual8(std::uint32_t a)const{return cached_read8(translate_address(a,false),false);}
+std::uint32_t CPU::read_virtual32(std::uint32_t a)const{const auto p=translate_address(a,false);return static_cast<std::uint32_t>(cached_read8(p,false))|(static_cast<std::uint32_t>(cached_read8(p+1u,false))<<8)|(static_cast<std::uint32_t>(cached_read8(p+2u,false))<<16)|(static_cast<std::uint32_t>(cached_read8(p+3u,false))<<24);}
+void CPU::write_virtual8(std::uint32_t a,std::uint8_t v){cached_write8(translate_address(a,true),v);}
+void CPU::write_virtual32(std::uint32_t a,std::uint32_t v){const auto p=translate_address(a,true);for(unsigned i=0;i<4;++i)cached_write8(p+i,static_cast<std::uint8_t>(v>>(i*8u)));}
 std::uint32_t CPU::getPC()const{return registers_[15];}
 std::uint32_t CPU::get_register(unsigned i)const{if(i>=16)throw std::out_of_range("ARM register index");return registers_[i];}
 void CPU::set_register(unsigned i,std::uint32_t v){if(i>=16)throw std::out_of_range("ARM register index");registers_[i]=v;}
@@ -157,12 +182,12 @@ bool CPU::condition_passed(unsigned q)const{
 void CPU::step(){
  const auto address=registers_[15];
  if(cpsr_&(1u<<5)){
-  const auto ins=static_cast<std::uint16_t>(read_virtual8(address) |
-      (static_cast<std::uint16_t>(read_virtual8(address+1u))<<8));
+  const auto ins=static_cast<std::uint16_t>(cached_read8(translate_address(address,false),true) |
+      (static_cast<std::uint16_t>(cached_read8(translate_address(address+1u,false),true))<<8));
   registers_[15]=address+2u;++instructions_executed_;
   execute_thumb(ins);return;
  }
- const auto ins=read_virtual32(address);registers_[15]=address+4u;++instructions_executed_;
+ const auto physical=translate_address(address,false);const auto ins=static_cast<std::uint32_t>(cached_read8(physical,true))|(static_cast<std::uint32_t>(cached_read8(translate_address(address+1u,false),true))<<8)|(static_cast<std::uint32_t>(cached_read8(translate_address(address+2u,false),true))<<16)|(static_cast<std::uint32_t>(cached_read8(translate_address(address+3u,false),true))<<24);registers_[15]=address+4u;++instructions_executed_;
  if(!condition_passed(ins>>28))return;
  if((ins&0x0FBF0FFFu)==0x010F0000u || (ins&0x0FB0FFF0u)==0x0120F000u || (ins&0x0FB0F000u)==0x0320F000u)
   execute_status_transfer(ins);
@@ -208,6 +233,19 @@ void CPU::execute_cp15_transfer(std::uint32_t ins){
  const unsigned opc1=(ins>>21)&7u,crn=(ins>>16)&15u,rd=(ins>>12)&15u;
  const unsigned opc2=(ins>>5)&7u,crm=ins&15u;
  if(opc1!=0u)throw std::runtime_error("Unsupported CP15 opc1 value");
+ if(!read&&crn==7u){
+  const auto address=read_operand_register(rd);
+  if(crm==5u&&opc2==0u)invalidate_instruction_cache(0u,true);
+  else if(crm==5u&&opc2==1u)invalidate_instruction_cache(address,false);
+  else if(crm==6u&&opc2==0u)invalidate_data_cache(0u,true);
+  else if(crm==6u&&opc2==1u)invalidate_data_cache(address,false);
+  else if(crm==10u&&opc2==0u){ }
+  else if(crm==10u&&opc2==1u){ }
+  else if(crm==14u&&opc2==0u)invalidate_data_cache(0u,true);
+  else if(crm==14u&&opc2==1u)invalidate_data_cache(address,false);
+  else throw std::runtime_error("Unsupported CP15 cache maintenance operation");
+  return;
+ }
  // ARM unified TLB maintenance: invalidate all entries or the entry covering MVA.
  if(!read&&crn==8u&&crm==7u){
   const auto operand=read_operand_register(rd);
