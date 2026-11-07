@@ -71,6 +71,16 @@ int main(){
  cpu.step();assert(cpu.get_register(3)==0xffffff80u);
  cpu.step();assert(cpu.get_register(4)==0xffffff80u);
  cpu.set_register(6,3);cpu.set_register(7,2);cpu.step();assert(cpu.get_register(5)==12u);
+ // ARM LDR/STR register offsets with immediate barrel shifts.
+ m.write32le(0x1064,0xE7801102u); // STR r1,[r0,r2,LSL #2]
+ m.write32le(0x1068,0xE7903102u); // LDR r3,[r0,r2,LSL #2]
+ cpu.set_register(0,0x1500);cpu.set_register(1,0x12345678u);cpu.set_register(2,3);cpu.set_register(15,0x1064);
+ cpu.step();assert(m.read32le(0x150c)==0x12345678u);
+ cpu.set_register(2,3);cpu.step();assert(cpu.get_register(3)==0x12345678u);
+ // LSR #1 offset: 8 >> 1 = 4.
+ m.write32le(0x106c,0xE78011A2u); // STR r1,[r0,r2,LSR #1]
+ cpu.set_register(0,0x1500);cpu.set_register(1,0xabcdef01u);cpu.set_register(2,8);cpu.set_register(15,0x106c);
+ cpu.step();assert(m.read32le(0x1504)==0xabcdef01u);
  cpu.set_register(15,0x90000000u);bool threw=false;try{cpu.step();}catch(const std::out_of_range&){threw=true;}assert(threw);
  return 0;
 }
