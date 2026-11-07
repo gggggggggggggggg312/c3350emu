@@ -47,6 +47,19 @@ BootPlan parse_boot_plan(const std::filesystem::path& path) {
             } else if(command=="LIMIT") {
                 std::string value,extra;if(!(row>>value)||row>>extra)throw std::runtime_error("LIMIT requires one instruction count");
                 plan.instruction_limit=number(value,"instruction limit");if(!plan.instruction_limit)throw std::runtime_error("Instruction limit must be nonzero");have_limit=true;
+            } else if(command=="STACK") {
+                std::string value,extra;
+                if(!(row>>value)||row>>extra)throw std::runtime_error("STACK requires one address");
+                const auto v=number(value,"stack pointer");
+                if(v>0xffffffffu)throw std::runtime_error("Stack pointer exceeds 32 bits");
+                plan.stack_pointer=static_cast<std::uint32_t>(v);plan.has_stack_pointer=true;
+            } else if(command=="REG") {
+                std::string index,value,extra;
+                if(!(row>>index>>value)||row>>extra)throw std::runtime_error("REG requires: register-index value");
+                const auto i=number(index,"register index"),v=number(value,"register value");
+                if(i>14u||v>0xffffffffu)throw std::runtime_error("REG supports R0-R14 and 32-bit values only");
+                for(const auto& old:plan.initial_registers)if(old.index==i)throw std::runtime_error("Register initialized more than once");
+                plan.initial_registers.push_back({static_cast<unsigned>(i),static_cast<std::uint32_t>(v)});
             } else if(command=="COPY") {
                 std::string source,destination,length,extra;
                 if(!(row>>source>>destination>>length)||row>>extra)throw std::runtime_error("COPY requires: source-address destination-address length");
@@ -108,6 +121,8 @@ BootPlan parse_boot_plan(const std::filesystem::path& path) {
             entry_covered=true;
     }
     if(!entry_covered)throw std::runtime_error("Entry point is not inside any loaded segment");
+    if(plan.has_stack_pointer && (plan.stack_pointer<plan.ram_base || static_cast<std::uint64_t>(plan.stack_pointer)>ram_end))
+        throw std::runtime_error("Stack pointer must be within configured RAM (the end address is allowed)");
     for(const auto& op:plan.memory_initialization) {
         const auto destination_end=static_cast<std::uint64_t>(op.destination)+op.length;
         if(op.destination<plan.ram_base||destination_end>ram_end)
