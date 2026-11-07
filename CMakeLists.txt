@@ -29,4 +29,8 @@ if(BUILD_TESTING)
     add_executable(test_fls_parser tests/test_fls_parser.cpp)
     target_link_libraries(test_fls_parser PRIVATE c3350_core)
     add_test(NAME fls_parser_tests COMMAND test_fls_parser)
+
+    add_executable(test_platform tests/test_platform.cpp)
+    target_link_libraries(test_platform PRIVATE c3350_core)
+    add_test(NAME platform_tests COMMAND test_platform)
 endif()
