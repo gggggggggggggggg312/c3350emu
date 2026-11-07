@@ -17,7 +17,8 @@ static void print_help(const char* program) {
         << "  " << program << " --inspect-firmware <file.fls>\n"
         << "  " << program << " --analyze-firmware <file.fls> [report.txt]\n"
         << "  " << program << " --inspect-fls-directory <file.fls>\n"
-        << "  " << program << " --compare-firmware-set <directory> [bytes]\n\n"
+        << "  " << program << " --compare-firmware-set <directory> [bytes]\\n"
+        << "  " << program << " --load-raw-segment <file> <offset> <length> <ram-base> <ram-size> <load-address>\\n\\n"
         << "The native analyzer creates a text report without Python or extra dependencies.\n"
         << "The directory scanner reports candidate 32-byte records; its layout is not yet validated.\n"
         << "Its pattern matches are research leads, not verified FLS fields or addresses.\n";
