@@ -191,6 +191,23 @@ int main(){
  assert(cpu.get_register(14)==0x1313u);
  cpu.step();assert((cpu.get_cpsr()&(1u<<5))!=0&&cpu.getPC()==0x1312u);
  cpu.set_register(15,0x90000000u);bool threw=false;try{cpu.step();}catch(const std::out_of_range&){threw=true;}assert(threw);
+ // ARMv6 byte-reversal instructions used by low-level runtime code.
+ m.write32le(0x1400u,0xE6BF0F30u); // REV r0,r0
+ m.write32le(0x1404u,0xE6BF1FB0u); // REV16 r1,r1
+ m.write32le(0x1408u,0xE6FF2FB0u); // REVSH r2,r2
+ cpu.reset(0x1400u);cpu.set_register(0,0x12345678u);
+ cpu.set_register(1,0x12345678u);cpu.set_register(2,0x00008001u);
+ cpu.step();assert(cpu.get_register(0)==0x78563412u);
+ cpu.step();assert(cpu.get_register(1)==0x34127856u);
+ cpu.step();assert(cpu.get_register(2)==0xFFFF8001u);
+ // Thumb REV family uses the same byte-order transformations.
+ m.write8(0x1410u,0x08u);m.write8(0x1411u,0xBAu); // REV r0,r1
+ m.write8(0x1412u,0x48u);m.write8(0x1413u,0xBAu); // REV16 r0,r1
+ m.write8(0x1414u,0xC8u);m.write8(0x1415u,0xBAu); // REVSH r0,r1
+ cpu.reset(0x1411u);cpu.set_register(1,0x12345678u);
+ cpu.step();assert(cpu.get_register(0)==0x78563412u);
+ cpu.step();assert(cpu.get_register(0)==0x34127856u);
+ cpu.set_register(1,0x00008001u);cpu.step();assert(cpu.get_register(0)==0xFFFF8001u);
  // ARM MMU: program TTBR0, DACR and SCTLR, then fetch and access data
  // through a virtual section mapped to a different physical section.
  Memory mmu_memory;
