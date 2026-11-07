@@ -229,7 +229,7 @@ void CPU::step_unchecked(){
  else if((ins&0x0F000010u)==0x0E000010u && ((ins>>8)&15u)==15u)
   execute_cp15_transfer(ins);
  else if((ins&0x0FFFFFF0u)==0x012FFF30u){
-  const target=read_operand_register(ins&15u);
+  const auto target=read_operand_register(ins&15u);
   registers_[14]=registers_[15];
   if(target&1u){cpsr_|=(1u<<5);registers_[15]=target&~1u;}
   else{cpsr_&=~(1u<<5);registers_[15]=target&~3u;}
