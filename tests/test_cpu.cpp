@@ -169,5 +169,40 @@ int main(){
  assert(cpu.get_register(8)==0x8888u&&cpu.get_register(13)==0xAAAAu);
 
  cpu.set_register(15,0x90000000u);bool threw=false;try{cpu.step();}catch(const std::out_of_range&){threw=true;}assert(threw);
+ // ARM MMU: program TTBR0, DACR and SCTLR, then fetch and access data
+ // through a virtual section mapped to a different physical section.
+ Memory mmu_memory;
+ mmu_memory.map(0x00000000u,0x4000u,true,"L1 translation table and setup RAM");
+ mmu_memory.map(0x00200000u,0x1000u,true,"Physical section");
+ mmu_memory.write32le(0x00000004u,0x00200402u); // VA 0x00100000 -> PA 0x00200000, domain 0, AP=01
+ mmu_memory.write32le(0x00000100u,0xEE020F10u); // MCR p15,0,r0,c2,c0,0 (TTBR0)
+ mmu_memory.write32le(0x00000104u,0xEE123F10u); // MCR p15,0,r2,c3,c0,0 (DACR)
+ mmu_memory.write32le(0x00000108u,0xEE013F10u); // MCR p15,0,r3,c1,c0,0 (SCTLR)
+ mmu_memory.write32le(0x00200000u,0xE3A0002Au); // MOV r0,#42
+ mmu_memory.write32le(0x00200004u,0xE5810000u); // STR r0,[r1]
+ mmu_memory.write32le(0x00200008u,0xE5912000u); // LDR r2,[r1]
+ CPU mmu_cpu(mmu_memory);
+ mmu_cpu.reset(0x00000100u);
+ mmu_cpu.set_register(0,0u); // TTBR0 = 0
+ mmu_cpu.set_register(2,1u); // Domain 0 = client
+ mmu_cpu.set_register(3,1u); // Enable MMU
+ mmu_cpu.set_register(1,0x00100100u);
+ mmu_cpu.step();mmu_cpu.step();mmu_cpu.step();
+ assert(mmu_cpu.getPC()==0x0000010cu);
+ mmu_cpu.set_register(15,0x00100000u);
+ mmu_cpu.step(); // virtual instruction fetch
+ assert(mmu_cpu.get_register(0)==42u);
+ mmu_cpu.step(); // virtual data write
+ assert(mmu_memory.read32le(0x00200100u)==42u);
+ mmu_cpu.step(); // virtual data read
+ assert(mmu_cpu.get_register(2)==42u);
+ // A missing first-level descriptor must stop execution with a translation fault.
+ mmu_memory.write32le(0x00000004u,0u);
+ mmu_cpu.set_register(15,0x00100000u);
+ bool mmu_fault=false;
+ try{mmu_cpu.step();}catch(const std::runtime_error& e){
+  mmu_fault=std::string(e.what()).find("MMU translation fault")!=std::string::npos;
+ }
+ assert(mmu_fault);
  return 0;
 }
