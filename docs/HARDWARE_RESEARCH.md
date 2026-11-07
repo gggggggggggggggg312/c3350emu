@@ -99,6 +99,22 @@ confirmed C3350 capacity.
 | C3350 DDR capacity and CPU address | Still unverified |
 | C3350 physical RAM map and init sequence | Still unknown |
 
+## LPDDR1 initialization sequence: protocol-level reference only
+
+A Microchip application note documents a standard software-driven LPDDR1 bring-up
+sequence: configure the memory type and timing, issue NOP, wait 200 microseconds,
+issue NOP again, precharge all banks, perform two auto-refresh cycles, program
+extended and normal mode registers, enter normal operation, and configure the
+refresh interval.
+
+Reference: Microchip AN2717, LPDDR1-SDRAM Initialization:
+https://onlinedocs.microchip.com/oxy/GUID-BCEA4067-D69A-4529-81CC-133D9195C03C-en-US-4/GUID-18576945-550A-48E3-987E-70F44153F3F2.html
+
+This is **not** the XMM2150 register map or proof of the exact C3350 boot
+sequence. It is useful for designing a protocol-level LPDDR1 model and for
+recognizing likely initialization phases in a future boot trace. Do not copy
+Microchip MPDDRC register names or values into the XMM2150 emulator.
+
 ## Explicitly unknown
 
 - Exact ARM1176 implementation suffix (for example, JZ/JZF-S), silicon revision/rXpY, clock and boot exception state.
