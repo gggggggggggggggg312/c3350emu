@@ -18,7 +18,7 @@ int main(){
  std::filesystem::create_directories(dir);
  const auto a=dir/"stage_a.fls",b=dir/"stage_b.fls",plan_path=dir/"boot.plan";
  try{
-  {std::ofstream out(a,std::ios::binary);write_word(out,0xE3A0002Au);write_word(out,0xEA000000u);}
+  {std::ofstream out(a,std::ios::binary);write_word(out,0xE3A0002Au);write_word(out,0xEA000001u);}
   {std::ofstream out(b,std::ios::binary);write_word(out,0xE3A01063u);}
   {std::ofstream out(plan_path);out<<"# Two loaded regions, one shared address space\n"
    <<"RAM 0x1000 0x100\nENTRY 0x1000\nLIMIT 3\n"
