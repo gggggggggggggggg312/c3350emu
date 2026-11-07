@@ -12,6 +12,7 @@ Current functionality:
 - C++ command-line application.\n- Simulated battery subsystem with percentage, voltage estimate, charging/discharging, and elapsed-time progression (`--battery-demo`).
 - ARM Data Abort and Prefetch Abort exception entry with simplified CP15 fault registers.
 - Firmware-set boot-preparation report for PSI, SLB, BSY, and CDS (`--prepare-boot`).
+- Multi-region boot-plan loader: stages multiple explicitly selected FLS byte ranges into one shared RAM map, then executes from a chosen entry point so branches can hand off between loaded regions (`--run-boot-plan`).
 - Provisional GT-C3350 hardware research profile, available with --platform-info.
 - Conservative FLS file inspection: file size and raw header bytes.
 - Python firmware inspector: SHA-256, header dump, and printable-string sampling.
@@ -179,3 +180,21 @@ Prepare a local firmware set without guessing physical load addresses:
 ```
 
 The report inventories expected components in the observed downloader order. It does not decode FLS records or boot the handset.
+
+
+## Multi-region firmware execution
+
+Create a UTF-8 text plan (for example `boot.plan`) next to the firmware files:
+
+```text
+# Values below are examples only, not verified C3350 addresses.
+RAM 0x01000000 0x00200000
+ENTRY 0x01000000
+LIMIT 100000
+SEGMENT "C3350XXKK1_BIN_psi.fls" 0x1000 0x20000 0x01000000
+SEGMENT "C3350XXKK1_BIN_slb.fls" 0x2000 0x30000 0x01020000
+SEGMENT "bsy.fls" 0x3000 0x40000 0x01050000
+SEGMENT "C3350XXKK1_BIN_CDS.fls" 0x4000 0x50000 0x01090000
+```
+
+Run `c3350emu.exe --run-boot-plan boot.plan`. Each SEGMENT line is `file offset length load-address`; paths are relative to the plan file. The loader verifies ranges, rejects overlapping RAM destinations, stages all selected bytes into one shared memory map, and starts one CPU at ENTRY. The CPU can branch between the staged regions. Replace every example offset, length, address, and entry with verified values before using real firmware. The example numbers are deliberately placeholders and are not claimed to match the Samsung FLS format.
