@@ -26,6 +26,7 @@ int main(){
    <<"SEGMENT \"stage_b.fls\" 0 4 0x1010\n";}
   const auto p=firmware::parse_boot_plan(plan_path);
   require(p.segments.size()==2,"Plan did not parse both firmware regions");
+  require(p.breakpoints.size()==1&&p.breakpoints[0]==0x1014u,"Breakpoint directive failed");
   Memory memory;memory.map(p.ram_base,p.ram_size,true,"boot-plan test RAM");
   for(const auto& s:p.segments)
    firmware::FlsParser::load_raw_segment(s.file,s.offset,s.length,s.load_address,memory);
