@@ -60,17 +60,17 @@ int main(int argc, char** argv) {
             const auto result = firmware::FlsParser::load_raw_segment(
                 argv[2], offset, static_cast<std::size_t>(length64),
                 static_cast<std::uint32_t>(load_address64), memory);
-            std::cout << "Raw firmware segment staged successfully\\n"
-                      << "Source: " << result.source.string() << "\\n"
-                      << "File offset: 0x" << std::hex << result.file_offset << "\\n"
-                      << "Load address: 0x" << result.load_address << "\\n"
-                      << std::dec << "Bytes loaded: " << result.bytes_loaded << "\\n"
-                      << "Calculated CRC-32: 0x" << std::hex << result.crc32 << "\\n"
-                      << "RAM: user-configured only; not a verified GT-C3350 physical map.\\n"
-                      << "FLS segment boundaries and true load address remain unverified.\\n";
+            std::cout << "Raw firmware segment staged successfully\n"
+                      << "Source: " << result.source.string() << "\n"
+                      << "File offset: 0x" << std::hex << result.file_offset << "\n"
+                      << "Load address: 0x" << result.load_address << "\n"
+                      << std::dec << "Bytes loaded: " << result.bytes_loaded << "\n"
+                      << "Calculated CRC-32: 0x" << std::hex << result.crc32 << "\n"
+                      << "RAM: user-configured only; not a verified GT-C3350 physical map.\n"
+                      << "FLS segment boundaries and true load address remain unverified.\n";
             return 0;
         } catch (const std::exception& e) {
-            std::cerr << "Firmware staging failed: " << e.what() << "\\n";
+            std::cerr << "Firmware staging failed: " << e.what() << "\n";
             return 1;
         }
     }
