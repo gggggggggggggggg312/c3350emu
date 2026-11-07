@@ -11,7 +11,7 @@ C3350EMU now contains a memory-backed ARM/Thumb interpreter with selected ARMv6-
 - B, BL, BX, and selected BLX branches.
 - Basic single data transfers: LDR, STR, LDRB, STRB, immediate offsets, and unshifted register offsets.
 - NZCV updates for the implemented arithmetic/test operations.
-- Selected Thumb-1 operations, exception entry/return, banked registers, CP15, MMU/TLB, simplified caches, exclusive accesses, and ARMv6 REV/REV16/REVSH.
+- Selected Thumb-1 operations, exception entry/return, banked registers, CP15, MMU/TLB, simplified caches, exclusive accesses (LDREX/STREX/CLREX), and ARMv6 REV/REV16/REVSH.
 
 ## Deliberate limitations
 
@@ -65,3 +65,8 @@ The interpreter also supports BLX-register in ARM state and the Thumb high-regis
 ## ARMv6 byte-reversal operations
 
 ARM-state and Thumb encodings of REV, REV16, and REVSH are implemented and covered by synthetic instruction tests. REV reverses all four bytes, REV16 reverses bytes within each 16-bit halfword, and REVSH reverses the low halfword then sign-extends it. These ARMv6 operations can appear in compiler-generated low-level routines; their presence in this emulator does not establish that a specific C3350 firmware path requires them.
+
+
+## ARM exclusive-monitor control
+
+The ARM unconditional CLREX encoding clears the CPU's local exclusive reservation. A subsequent STREX therefore reports failure unless a new LDREX establishes a reservation. This models the local monitor only; external agents and multicore coherency are not represented.
