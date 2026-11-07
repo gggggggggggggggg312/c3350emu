@@ -29,6 +29,22 @@ static void print_platform_info() {
 int main(int argc, char** argv) {
     if (argc == 2 && std::string(argv[1]) == "--help") { print_help(argv[0]); return 0; }
     if (argc == 2 && std::string(argv[1]) == "--platform-info") { print_platform_info(); return 0; }
+    if ((argc == 3 || argc == 4) && std::string(argv[1]) == "--compare-firmware-set") {
+        try {
+            std::size_t bytes = 4096;
+            if (argc == 4) {
+                const std::string value(argv[3]);
+                std::size_t parsed = 0;
+                bytes = static_cast<std::size_t>(std::stoull(value, &parsed, 0));
+                if (parsed != value.size()) throw std::runtime_error("Invalid comparison length.");
+            }
+            std::cout << firmware::FlsParser::compare_headers_in_directory(argv[2], bytes);
+            return 0;
+        } catch (const std::exception& e) {
+            std::cerr << "Header comparison failed: " << e.what() << "\\n";
+            return 1;
+        }
+    }
     if (argc == 3 && std::string(argv[1]) == "--inspect-fls-directory") {
         try {
             std::cout << firmware::FlsParser::inspect_directory(argv[2]);
