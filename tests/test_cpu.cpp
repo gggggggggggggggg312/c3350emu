@@ -168,6 +168,17 @@ int main(){
  cpu.set_register(1,0x1fu);cpu.set_register(15,0x10bc);cpu.step();
  assert(cpu.get_register(8)==0x8888u&&cpu.get_register(13)==0xAAAAu);
 
+ // ARM BLX immediate transfers into Thumb state and links back to ARM.
+ m.write32le(0x1300u,0xFA000000u); // BLX to PC+8, H=0
+ m.write8(0x1308u,0x07u);m.write8(0x1309u,0x20u); // Thumb MOVS r0,#7
+ m.write8(0x130au,0x70u);m.write8(0x130bu,0x47u); // Thumb BX lr
+ m.write32le(0x1304u,0xE3A01009u); // ARM MOV r1,#9 (return address)
+ cpu.reset(0x1300u);cpu.step();
+ assert((cpu.get_cpsr()&(1u<<5))!=0&&cpu.getPC()==0x1308u);
+ assert(cpu.get_register(14)==0x1304u);
+ cpu.step();assert(cpu.get_register(0)==7u);
+ cpu.step();assert((cpu.get_cpsr()&(1u<<5))==0&&cpu.getPC()==0x1304u);
+ cpu.step();assert(cpu.get_register(1)==9u);
  cpu.set_register(15,0x90000000u);bool threw=false;try{cpu.step();}catch(const std::out_of_range&){threw=true;}assert(threw);
  // ARM MMU: program TTBR0, DACR and SCTLR, then fetch and access data
  // through a virtual section mapped to a different physical section.
