@@ -6,6 +6,7 @@
 #include <iterator>
 #include <stdexcept>
 #include <string>
+#include <vector>
 
 namespace {
 void require(bool condition, const char* message) {
@@ -48,7 +49,7 @@ int main() {
             contents.assign(std::istreambuf_iterator<char>(in),
                             std::istreambuf_iterator<char>());
             require(!in.bad(), "Error while reading generated analysis report.");
-        } // Close the report before deleting it (required on Windows).
+        }
 
         require(contents.find("CRC-32/ISO-HDLC") != std::string::npos,
                 "Report is missing the CRC-32 section.");
@@ -56,6 +57,33 @@ int main() {
                 "Report is missing the printable-strings section.");
         require(contents.find("does not decode the Samsung FLS") != std::string::npos,
                 "Report is missing the format limitation note.");
+
+        // Build a small fixture matching the candidate 32-byte record pattern.
+        std::vector<unsigned char> directory(0x120, 0);
+        const auto add_record = [&directory](std::size_t offset, const std::string& name) {
+            for (std::size_t i = 0; i < name.size(); ++i)
+                directory[offset + 4 + i] = static_cast<unsigned char>(name[i]);
+            directory[offset + 16] = 0x78;
+            directory[offset + 17] = 0x56;
+            directory[offset + 18] = 0x34;
+            directory[offset + 19] = 0x12;
+        };
+        add_record(0xE0, "SLB");
+        add_record(0x100, "CODE");
+        {
+            std::ofstream out(path, std::ios::binary | std::ios::trunc);
+            require(static_cast<bool>(out), "Could not recreate directory fixture.");
+            out.write(reinterpret_cast<const char*>(directory.data()),
+                      static_cast<std::streamsize>(directory.size()));
+            require(static_cast<bool>(out), "Could not write directory fixture.");
+        }
+        const auto directory_report = firmware::FlsParser::inspect_directory(path);
+        require(directory_report.find("Record @ 0x000000E0  name=SLB") != std::string::npos,
+                "Directory scanner missed the SLB test record.");
+        require(directory_report.find("Record @ 0x00000100  name=CODE") != std::string::npos,
+                "Directory scanner missed the CODE test record.");
+        require(directory_report.find("W4=0x12345678") != std::string::npos,
+                "Directory scanner did not decode a little-endian word.");
 
         std::filesystem::remove(report);
         std::filesystem::remove(path);
