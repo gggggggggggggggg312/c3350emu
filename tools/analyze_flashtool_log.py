@@ -19,7 +19,7 @@ ITEM_RE = re.compile(
 )
 REGION_RE = re.compile(r"Load region\s+(\d+)", re.IGNORECASE)
 CHECKSUM_RE = re.compile(r"Checksum OK\s*\(\s*(0x[0-9a-f]+)\s*\)", re.IGNORECASE)
-TIME_RE = re.compile(r"Process time was\s+(.+?)\.", re.IGNORECASE)
+TIME_RE = re.compile(r"Process time was\s+(.+?)(?:\.(?=\s*$)|$)", re.IGNORECASE)
 
 
 def parse_log(text: str) -> list[dict[str, Any]]:
