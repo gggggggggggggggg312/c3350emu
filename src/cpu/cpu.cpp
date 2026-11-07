@@ -209,6 +209,19 @@ void CPU::step_unchecked(){
   execute_thumb(ins);return;
  }
  const auto physical=translate_address(address,false);const auto ins=static_cast<std::uint32_t>(cached_read8(physical,true))|(static_cast<std::uint32_t>(cached_read8(translate_address(address+1u,false),true))<<8)|(static_cast<std::uint32_t>(cached_read8(translate_address(address+2u,false),true))<<16)|(static_cast<std::uint32_t>(cached_read8(translate_address(address+3u,false),true))<<24);registers_[15]=address+4u;++instructions_executed_;fetching_instruction_=false;
+ // BLX (immediate): ARM-to-Thumb interworking branch with link.
+ // The unconditional encoding uses cond=1111 and must be handled before
+ // the normal ARM condition-code check.
+ if((ins&0xFE000000u)==0xFA000000u){
+  const auto offset=(static_cast<std::int32_t>(ins<<8)>>6)|
+                    static_cast<std::int32_t>((ins>>23)&2u);
+  const auto target=static_cast<std::uint32_t>(
+      static_cast<std::int64_t>(registers_[15])+4+offset);
+  registers_[14]=registers_[15];
+  cpsr_|=(1u<<5);
+  registers_[15]=target&~1u;
+  return;
+ }
  if(!condition_passed(ins>>28))return;
  if((ins&0x0FBF0FFFu)==0x010F0000u || (ins&0x0FB0FFF0u)==0x0120F000u || (ins&0x0FB0F000u)==0x0320F000u)
   execute_status_transfer(ins);
