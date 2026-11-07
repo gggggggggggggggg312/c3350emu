@@ -1,22 +1,23 @@
 # CPU interpreter status
 
-C3350EMU now contains a small, memory-backed ARM-state interpreter. This is the first step toward executing code, not proof that the target's exact CPU core or reset state has been identified.
+C3350EMU now contains a memory-backed ARM/Thumb interpreter with selected ARMv6-era system features. It remains a partial model, not proof that the target's exact CPU core or reset state has been identified.
 
 ## Implemented instruction groups
 
-- ARM condition-code evaluation (EQ through AL, with NV not executed).
+- ARM condition-code evaluation (EQ through AL, with NV not executed), plus ARM/Thumb interworking.
 - Data-processing operations: AND, EOR, SUB, RSB, ADD, TST, TEQ, CMP, CMN, ORR, MOV, BIC, MVN.
 - Immediate operands with rotated 8-bit constants.
 - Register operands with immediate shifts (LSL, LSR, ASR, ROR).
-- B and BL branches.
+- B, BL, BX, and selected BLX branches.
 - Basic single data transfers: LDR, STR, LDRB, STRB, immediate offsets, and unshifted register offsets.
 - NZCV updates for the implemented arithmetic/test operations.
+- Selected Thumb-1 operations, exception entry/return, banked registers, CP15, MMU/TLB, simplified caches, exclusive accesses, and ARMv6 REV/REV16/REVSH.
 
 ## Deliberate limitations
 
-- ARM state only. Thumb/Thumb-2 is not implemented.
-- No exception entry/return, banked registers, SPSR handling, CP15, MMU, caches, interrupts, timers, or cycle timing.
-- No multiply, block transfer, halfword/signed transfer, SWI, coprocessor, or DSP instructions.
+- Thumb support is a subset; Thumb-2 and many ARMv6/ARM1176 instructions remain unimplemented.
+- Interrupt delivery, timers, cycle timing, full ARM1176 system-control behavior, and complete exception/abort semantics remain incomplete.
+- Many multiply, block-transfer, coprocessor, DSP, and system instructions remain unsupported.
 - Register-specified shifts and register-shifted transfer offsets are not implemented.
 - Reset CPSR value is a temporary test default, not a verified GT-C3350 reset value.
 - No physical RAM/ROM addresses or peripheral registers are assumed.
