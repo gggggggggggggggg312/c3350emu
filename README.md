@@ -1,86 +1,107 @@
 # C3350EMU
 
-An experimental emulator project targeting the Samsung GT-C3350 (Xcover 2), with the long-term goal of executing original firmware.
+An experimental research emulator targeting the Samsung GT-C3350. The long-term objective is execution of original phone firmware.
 
-## Project status
+## Status
 
-Early reverse-engineering / scaffolding stage. This repository does **not** yet boot the phone or execute its firmware.
+This project is in the firmware-analysis and infrastructure stage. It does **not** currently boot the phone or execute its firmware.
 
-Known investigation leads:
-- Firmware package: `C3350XXKK1_OXEKK1`
-- Platform string reported in the firmware: `XMM2150`
-- Bootloader strings reported: `xmm2150_BOOTLOADER_VERSION_3_1` and `3.1_M1S1`
-- Candidate ARM instruction patterns have been observed in a firmware region, but the exact CPU core, execution mode, memory map, and load addresses are not yet established.
+Current functionality:
+- C++ command-line application.
+- Conservative FLS file inspection: file size and raw header bytes.
+- Python firmware inspector: SHA-256, header dump, and printable-string sampling.
+- Basic 32-bit address-space memory map with read/write permissions.
+- Automated C++ tests through CTest and GitHub Actions.
+- Windows and Linux CI builds.
 
-Do not treat the platform name as proof of a CPU architecture. The CPU backend must be selected only after the firmware and boot chain have been properly analyzed.
+The FLS parser is intentionally conservative. The complete Samsung FLS container structure, segment records, checksums, load addresses, and entry-point rules have not yet been verified. The current parser does not claim to extract executable sections.
 
-## Technology
+## Hardware research notes
 
-- Python: tooling, firmware inspection, orchestration, and later device models.
-- C++: performance-sensitive CPU and memory components.
-- Capstone: optional disassembly experiments.
+- Firmware package under investigation: `C3350XXKK1_OXEKK1`.
+- Firmware strings include `XMM2150` and `xmm2150_BOOTLOADER_VERSION_3_1`.
+- ARM-like instruction patterns were observed in a candidate PSI region. They must be validated against confirmed segment boundaries and execution addresses before selecting a CPU core.
+- Do not infer the exact processor core, ARM version, memory map, or peripheral layout from the platform name alone.
 
 ## Repository layout
 
 ```
 C3350EMU/
+├── .github/workflows/build.yml
 ├── CMakeLists.txt
-├── requirements.txt
-├── firmware/                 # Put locally obtained firmware here; not tracked
+├── firmware/                 # Local firmware; binaries are not committed
 ├── src/
-│   ├── main.py
-│   └── cpu/
-│       ├── cpu.cpp
-│       └── cpu.hpp
+│   ├── main.cpp
+│   ├── cpu/                  # CPU scaffold; execution not implemented
+│   ├── firmware/             # Conservative FLS inspection
+│   └── memory/               # Basic memory-region implementation
+├── tests/
+│   ├── test_fls_parser.cpp
+│   └── test_memory.cpp
 └── tools/
     ├── inspect_firmware.py
     └── disassemble_candidate.py
 ```
 
-## Getting started
+## Build on Windows
 
-1. Create a Python environment.
-2. Install tooling dependencies:
-   ```powershell
-   py -m pip install -r requirements.txt
-   ```
-3. Place extracted firmware components in the local `firmware/` directory.
-4. Inspect a component:
-   ```powershell
-   py tools/inspect_firmware.py firmware/C3350XXKK1_BIN_psi.fls
-   ```
-5. Optionally inspect a candidate region as ARM little-endian code:
-   ```powershell
-   py tools/disassemble_candidate.py firmware/C3350XXKK1_BIN_psi.fls --offset 0x36000 --length 0x100
-   ```
-
-The disassembly script is an experiment, not proof that the selected region is executable ARM code. Confirm container headers, segment boundaries, load addresses, and processor mode before relying on its output.
-
-## Download a compiled build
-
-GitHub Actions builds the project automatically on pushes to `main`, pull requests, and manual workflow runs.
-
-1. Open the repository's **Actions** tab.
-2. Select the latest successful **Build C3350EMU** run.
-3. Under **Artifacts**, download:
-   - `C3350EMU-windows-x64` for Windows (contains `c3350emu.exe`).
-   - `C3350EMU-linux-x64` for Linux.
-4. Extract the downloaded artifact and run the executable.
-
-On Windows, you can also build locally with Visual Studio Build Tools and CMake:
+Install Visual Studio Build Tools with the C++ workload and CMake.
 
 ```powershell
 cmake -S . -B build -A x64
 cmake --build build --config Release
-.\build\Release\c3350emu.exe
+ctest --test-dir build -C Release --output-on-failure
+.\build\Release\c3350emu.exe --help
 ```
 
-**Current limitation:** These downloads are compiled test scaffolds, not a working phone emulator yet. The executable currently reports project/CPU scaffold status; original firmware execution is still future work.
+## Build on Linux
+
+Install a C++17 compiler, CMake, and CTest.
+
+```bash
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+cmake --build build --parallel
+ctest --test-dir build --output-on-failure
+./build/c3350emu --help
+```
+
+## Inspect firmware
+
+The C++ program can report basic file metadata and the first 64 bytes:
+
+```powershell
+.\build\Release\c3350emu.exe --inspect-firmware firmware/PSI.fls
+```
+
+The Python tool provides additional analysis:
+
+```powershell
+py tools/inspect_firmware.py firmware/PSI.fls
+```
+
+It reports file size, SHA-256, a header hex dump, and a limited sample of printable strings. These are inspection aids, not a complete FLS decoder.
+
+Optional disassembly experiment:
+
+```powershell
+py -m pip install -r requirements.txt
+py tools/disassemble_candidate.py firmware/PSI.fls --offset 0x36000 --length 0x100
+```
+
+Treat candidate disassembly as a hypothesis until executable sections and addresses are established.
+
+## GitHub Actions builds
+
+Pushes and pull requests trigger Windows and Linux builds plus tests. Download the latest successful build from the repository's Actions tab under Artifacts:
+- `C3350EMU-windows-x64`
+- `C3350EMU-linux-x64`
+
+Artifacts currently expire after 30 days. These are research tools, not a bootable phone emulator.
 
 ## Firmware files
 
-Firmware binaries are intentionally excluded from Git. Only commit files you are legally allowed to redistribute. Keep original firmware locally and record hashes in investigation notes.
+Firmware binaries are intentionally excluded from Git. Only redistribute firmware when you have the legal right to do so. Keep original firmware locally and record hashes in research notes.
 
 ## License
 
-No license has been selected yet. Until one is added, all rights are reserved by default.
+No license has been selected. Until one is added, all rights are reserved by default.
