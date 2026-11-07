@@ -55,3 +55,8 @@ A boot plan may include `TRACE "boot-trace.csv"`. The runner writes one CSV row 
 ## Boot breakpoints
 
 A boot plan may include repeated `BREAK <address>` directives. Execution stops before the instruction at a matching PC, preserving the CPU state and final register dump. This is useful for inspecting stage transitions, reset-vector flow, and known handoff points without stepping through the rest of the firmware.
+
+
+## Runtime RAM initialization
+
+Boot plans support ordered `COPY source destination length` and `ZERO destination length` operations. They run after all selected raw segments are staged and before CPU reset/entry. COPY snapshots its source first, so overlapping copies behave safely. Both source and destination ranges are checked against configured RAM. These operations model common boot-time initialized-data and BSS setup; they do not infer C3350 addresses automatically.
