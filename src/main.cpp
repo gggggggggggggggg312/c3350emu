@@ -1,9 +1,11 @@
 #include "cpu/cpu.hpp"
 #include "firmware/fls_parser.hpp"
 #include "platform/platform.hpp"
+#include "memory/memory.hpp"
 
 #include <exception>
 #include <iostream>
+#include <limits>
 #include <string>
 
 static void print_help(const char* program) {
@@ -30,7 +32,49 @@ static void print_platform_info() {
 int main(int argc, char** argv) {
     if (argc == 2 && std::string(argv[1]) == "--help") { print_help(argv[0]); return 0; }
     if (argc == 2 && std::string(argv[1]) == "--platform-info") { print_platform_info(); return 0; }
-    if ((argc == 3 || argc == 4) && std::string(argv[1]) == "--compare-firmware-set") {
+
+    if (argc == 8 && std::string(argv[1]) == "--load-raw-segment") {
+        try {
+            const auto parse = [](const char* value, const char* label) -> std::uint64_t {
+                const std::string text(value);
+                std::size_t used = 0;
+                const auto parsed = std::stoull(text, &used, 0);
+                if (used != text.size())
+                    throw std::runtime_error(std::string("Invalid ") + label + ".");
+                return parsed;
+            };
+            const auto offset = parse(argv[3], "file offset");
+            const auto length64 = parse(argv[4], "segment length");
+            const auto ram_base64 = parse(argv[5], "RAM base");
+            const auto ram_size64 = parse(argv[6], "RAM size");
+            const auto load_address64 = parse(argv[7], "load address");
+            if (length64 > std::numeric_limits<std::size_t>::max() ||
+                ram_size64 == 0 || ram_size64 > std::numeric_limits<std::size_t>::max() ||
+                ram_base64 > 0xffffffffu || load_address64 > 0xffffffffu)
+                throw std::runtime_error("One or more address/size values are out of range.");
+
+            Memory memory;
+            memory.map(static_cast<std::uint32_t>(ram_base64),
+                       static_cast<std::size_t>(ram_size64), true,
+                       "user-configured staging RAM");
+            const auto result = firmware::FlsParser::load_raw_segment(
+                argv[2], offset, static_cast<std::size_t>(length64),
+                static_cast<std::uint32_t>(load_address64), memory);
+            std::cout << "Raw firmware segment staged successfully\\n"
+                      << "Source: " << result.source.string() << "\\n"
+                      << "File offset: 0x" << std::hex << result.file_offset << "\\n"
+                      << "Load address: 0x" << result.load_address << "\\n"
+                      << std::dec << "Bytes loaded: " << result.bytes_loaded << "\\n"
+                      << "Calculated CRC-32: 0x" << std::hex << result.crc32 << "\\n"
+                      << "RAM: user-configured only; not a verified GT-C3350 physical map.\\n"
+                      << "FLS segment boundaries and true load address remain unverified.\\n";
+            return 0;
+        } catch (const std::exception& e) {
+            std::cerr << "Firmware staging failed: " << e.what() << "\\n";
+            return 1;
+        }
+    }
+\n    if ((argc == 3 || argc == 4) && std::string(argv[1]) == "--compare-firmware-set") {
         try {
             std::size_t bytes = 4096;
             if (argc == 4) {
