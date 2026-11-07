@@ -7,6 +7,8 @@ An experimental research emulator targeting the Samsung GT-C3350. The long-term 
 This project is in the firmware-analysis and infrastructure stage. It does **not** currently boot the phone or execute its firmware.
 
 Current functionality:
+- Native Windows GUI target (`c3350emu-gui`) for selecting firmware/binary files, viewing header bytes, and running a user-configured raw ARM image.
+- Separate simplified ARM instruction and data cache models with CP15 cache invalidation operations.
 - C++ command-line application.
 - Provisional GT-C3350 hardware research profile, available with --platform-info.
 - Conservative FLS file inspection: file size and raw header bytes.
@@ -18,7 +20,7 @@ Current functionality:
 - Automated C++ tests through CTest and GitHub Actions.
 - Windows and Linux CI builds.
 
-The CPU interpreter is an early development component, not yet a complete XMM2150/GT-C3350 CPU model. Intel's XMM 2130/2150 platform brief identifies the baseband CPU family as ARM1176; the exact ARM1176 implementation suffix and silicon revision remain unconfirmed. The interpreter implements only a subset of ARM-state instructions; Thumb state, exceptions, coprocessors, MMU behavior, timing, and hardware-specific reset behavior are not implemented. See docs/CPU_IMPLEMENTATION.md and docs/HARDWARE_RESEARCH.md.\n\nThe FLS parser is intentionally conservative. The complete Samsung FLS container structure, segment records, checksums, load addresses, and entry-point rules have not yet been verified. The current parser does not claim to extract executable sections.
+The GUI's raw execution mode requires a user-supplied RAM map and entry point. It does not decode FLS containers automatically. The instruction/data caches are simplified 128-line, 32-byte, direct-mapped, write-through models; they are not a cycle-accurate ARM1176 cache implementation.\n\nThe CPU interpreter is an early development component, not yet a complete XMM2150/GT-C3350 CPU model. Intel's XMM 2130/2150 platform brief identifies the baseband CPU family as ARM1176; the exact ARM1176 implementation suffix and silicon revision remain unconfirmed. The interpreter implements only a subset of ARM-state instructions; Thumb state, exceptions, coprocessors, MMU behavior, timing, and hardware-specific reset behavior are not implemented. See docs/CPU_IMPLEMENTATION.md and docs/HARDWARE_RESEARCH.md.\n\nThe FLS parser is intentionally conservative. The complete Samsung FLS container structure, segment records, checksums, load addresses, and entry-point rules have not yet been verified. The current parser does not claim to extract executable sections.
 
 ## Hardware research
 
@@ -63,6 +65,7 @@ Install Visual Studio Build Tools with the C++ workload and CMake.
 ```powershell
 cmake -S . -B build -A x64
 cmake --build build --config Release
+.\build\Release\c3350emu-gui.exe
 ctest --test-dir build -C Release --output-on-failure
 .\build\Release\c3350emu.exe --help
 .\build\Release\c3350emu.exe --platform-info
