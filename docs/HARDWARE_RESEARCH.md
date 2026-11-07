@@ -60,7 +60,8 @@ https://forum.gsmhosting.com/vbb/f311/successfully-unlocked-flashed-phones-hwk-7
 
 - Exact ARM1176 implementation suffix (for example, JZ/JZF-S), silicon revision/rXpY, clock and boot exception state.
 - CPU MIDR/CPUID value from the actual GT-C3350, needed to confirm the implemented core revision.
-- Physical LPDDR capacity, base address, timing and initialization sequence.\n- On-chip SRAM capacity, base address and boot-time visibility.
+- Physical LPDDR capacity, base address, timing and initialization sequence.
+- On-chip SRAM capacity, base address and boot-time visibility.
 - Exact OneNAND part suffix, geometry, host interface configuration and register offsets.
 - CPU-visible flash mapping and boot aliasing.
 - Interrupt controller, timers, UART, LCD and keypad register maps.
