@@ -50,3 +50,8 @@ Use `c3350emu --prepare-boot <firmware-directory> [report.txt]` to inventory PSI
 ## Firmware execution trace
 
 A boot plan may include `TRACE "boot-trace.csv"`. The runner writes one CSV row per attempted instruction, including pre-execution PC, ARM/Thumb state, opcode when readable, source segment and corresponding file offset, post-step PC, and CPSR. This exposes control flow and cross-segment branches during execution. The trace is diagnostic output, not proof that selected raw ranges are valid firmware stages.
+
+
+## Boot breakpoints
+
+A boot plan may include repeated `BREAK <address>` directives. Execution stops before the instruction at a matching PC, preserving the CPU state and final register dump. This is useful for inspecting stage transitions, reset-vector flow, and known handoff points without stepping through the rest of the firmware.
