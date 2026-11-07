@@ -5,11 +5,18 @@ unknown field into a guessed address or register value.
 
 ## Current evidence
 
+The Intel XMM 2130/2150 platform brief explicitly labels the baseband CPU as **ARM1176**. This is stronger evidence than the earlier generic ARM11-family inference. It does not identify the implementation suffix (such as ARM1176JZ-S versus ARM1176JZF-S) or the silicon revision. Therefore C3350EMU should target the ARM1176 architecture family for now, while keeping the exact core revision marked unknown.
+
+Source: Intel, *Mobile XMM 2130/2150 Platform Brief*, document 326687-001 (2009), CPU block/key-features diagram: https://www.intel.com/content/dam/www/public/us/en/documents/platform-briefs/mobile-xmm-2130-2150-brief.pdf
+
+
 | Item | Finding | Confidence / limitation |
 |---|---|---|
 | Target | Samsung GT-C3350 | Confirmed |
 | Baseband platform | Intel XMM2150 family | Supported by C3350 firmware strings and model-specific flashing evidence |
-| CPU family | ARM11 | XMM2150 family documentation; exact core SKU/revision not established |
+| CPU core | ARM1176 family | Intel's XMM 2130/2150 platform brief identifies the baseband CPU as ARM1176; exact core suffix and silicon revision are not stated |
+| CPU architecture | ARMv6K-class ARM11 (provisional) | Consistent with ARM1176; verify against the GT-C3350 silicon identification or CPU MIDR before fixing implementation details |
+| CPU core revision | Unknown | No C3350-specific MIDR/CPUID readout or XMM2150 revision record found yet |
 | Instruction architecture | ARMv6 family | ARM11-family direction; validate against executable firmware regions |
 | Flash marking | K5W1G12ACP(C3350)S | Reported in a GT-C3350 service log |
 | Storage technology | MuxOneNAND candidate | Related part-number documentation points to MuxOneNAND; exact fitted suffix/variant must be checked |
@@ -21,7 +28,8 @@ unknown field into a guessed address or register value.
 
 ## Explicitly unknown
 
-- Exact ARM11 core model, revision, clock and boot exception state.
+- Exact ARM1176 implementation suffix (for example, JZ/JZF-S), silicon revision/rXpY, clock and boot exception state.
+- CPU MIDR/CPUID value from the actual GT-C3350, needed to confirm the implemented core revision.
 - Physical DDR capacity, base address, timing and initialization sequence.
 - Exact OneNAND part suffix, geometry, host interface configuration and register offsets.
 - CPU-visible flash mapping and boot aliasing.
