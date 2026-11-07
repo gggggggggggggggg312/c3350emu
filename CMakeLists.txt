@@ -10,6 +10,7 @@ add_library(c3350_core
     src/cpu/cpu.cpp
     src/firmware/fls_parser.cpp
     src/memory/memory.cpp
+    src/memory/lpddr1.cpp
     src/platform/platform.cpp
 )
 
@@ -22,6 +23,10 @@ target_link_libraries(c3350emu PRIVATE c3350_core)
 
 include(CTest)
 if(BUILD_TESTING)
+    add_executable(test_lpddr1 tests/test_lpddr1.cpp)
+    target_link_libraries(test_lpddr1 PRIVATE c3350_core)
+    add_test(NAME lpddr1_protocol_tests COMMAND test_lpddr1)
+
     add_executable(test_memory tests/test_memory.cpp)
     target_link_libraries(test_memory PRIVATE c3350_core)
     add_test(NAME memory_tests COMMAND test_memory)
