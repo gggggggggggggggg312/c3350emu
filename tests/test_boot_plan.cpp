@@ -24,7 +24,8 @@ int main(){
    <<"RAM 0x1000 0x100\nENTRY 0x1000\nLIMIT 3\nBREAK 0x1014\n"
    <<"SEGMENT \"stage_a.fls\" 0 8 0x1000\n"
    <<"SEGMENT \"stage_b.fls\" 0 4 0x1010\n"
-   <<"ZERO 0x1020 4\nCOPY 0x1010 0x1020 4\nZERO 0x1024 4\n";}
+   <<"ZERO 0x1020 4\nCOPY 0x1010 0x1020 4\nZERO 0x1024 4\n"
+   <<"STACK 0x1100\nREG 0 0x1234\nREG 1 0x5678\n";}
   const auto p=firmware::parse_boot_plan(plan_path);
   require(p.segments.size()==2,"Plan did not parse both firmware regions");
   require(p.breakpoints.size()==1&&p.breakpoints[0]==0x1014u,"Breakpoint directive failed");
@@ -34,7 +35,13 @@ int main(){
   firmware::apply_memory_initialization(p,memory);
   require(memory.read32le(0x1020u)==0xE3A01063u,"COPY did not stage initialized data");
   require(memory.read32le(0x1024u)==0u,"ZERO did not clear BSS-like memory");
+  require(p.has_stack_pointer&&p.stack_pointer==0x1100u,"STACK directive failed");
+  require(p.initial_registers.size()==2,"REG directives failed");
   CPU cpu(memory);cpu.reset(p.entry);
+  for(const auto& reg:p.initial_registers)cpu.set_register(reg.index,reg.value);
+  cpu.set_register(13,p.stack_pointer);
+  require(cpu.get_register(0)==0x1234u&&cpu.get_register(1)==0x5678u,"Initial registers not applied");
+  require(cpu.get_register(13)==0x1100u,"Initial stack pointer not applied");
   for(std::uint64_t i=0;i<p.instruction_limit&&cpu.instructions_executed()<p.instruction_limit;++i)cpu.step();
   require(cpu.get_register(0)==42,"First loaded region did not execute");
   require(cpu.get_register(1)==99,"Branch handoff to second loaded region failed");
