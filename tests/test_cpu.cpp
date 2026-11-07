@@ -312,5 +312,33 @@ int main(){
  cache_cpu.set_register(15,0x1008u);cache_cpu.step();
  cache_cpu.set_register(15,0x1104u);cache_cpu.step();
  assert(cache_cpu.get_register(2)==9u);
+ // ARMv6 word-exclusive accesses: LDREX establishes a reservation;
+ // STREX succeeds once, then fails after the reservation has been consumed.
+ Memory exclusive_memory;
+ exclusive_memory.map(0x1000u,0x1000u,true,"Exclusive access test RAM");
+ exclusive_memory.write32le(0x1000u,0xE1901F9Fu); // LDREX r1,[r0]
+ exclusive_memory.write32le(0x1004u,0xE1802F93u); // STREX r2,r3,[r0]
+ exclusive_memory.write32le(0x1008u,0xE1804F93u); // STREX r4,r3,[r0], reservation already consumed
+ exclusive_memory.write32le(0x1100u,0x11223344u);
+ CPU exclusive_cpu(exclusive_memory);
+ exclusive_cpu.reset(0x1000u);
+ exclusive_cpu.set_register(0,0x1100u);
+ exclusive_cpu.set_register(3,0xAABBCCDDu);
+ exclusive_cpu.step();
+ assert(exclusive_cpu.get_register(1)==0x11223344u);
+ exclusive_cpu.step();
+ assert(exclusive_cpu.get_register(2)==0u);
+ assert(exclusive_memory.read32le(0x1100u)==0xAABBCCDDu);
+ exclusive_cpu.set_register(3,0x55667788u);
+ exclusive_cpu.step();
+ assert(exclusive_cpu.get_register(4)==1u);
+ assert(exclusive_memory.read32le(0x1100u)==0xAABBCCDDu);
+ // An ordinary CPU store clears an outstanding exclusive reservation.
+ exclusive_memory.write32le(0x1010u,0xE1901F9Fu); // LDREX r1,[r0]
+ exclusive_memory.write32le(0x1014u,0xE5803000u); // STR r3,[r0]
+ exclusive_memory.write32le(0x1018u,0xE1802F93u); // STREX r2,r3,[r0]
+ exclusive_cpu.set_register(15,0x1010u);
+ exclusive_cpu.step();exclusive_cpu.step();exclusive_cpu.step();
+ assert(exclusive_cpu.get_register(2)==1u);
  return 0;
 }
