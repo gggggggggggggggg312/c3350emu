@@ -250,5 +250,33 @@ int main(){
  large_cpu.set_register(15,0x00100000u);
  large_cpu.step();
  assert(large_cpu.get_register(0)==42u);
+ // Unified TLB: remapping a page does not change a cached translation
+ // until an architected invalidation instruction is executed.
+ Memory tlb_memory;
+ tlb_memory.map(0x00000000u,0x4000u,true,"TLB tables and maintenance code");
+ tlb_memory.map(0x00200000u,0x1000u,true,"Original physical page");
+ tlb_memory.map(0x00300000u,0x1000u,true,"Replacement physical page");
+ tlb_memory.write32le(0x00000004u,0x00200402u); // VA 0x00100000 -> PA 0x00200000
+ tlb_memory.write32le(0x00000000u,0x00000402u); // Identity map maintenance code
+ tlb_memory.write32le(0x00000100u,0xEE020F10u); // MCR TTBR0
+ tlb_memory.write32le(0x00000104u,0xEE032F10u); // MCR DACR
+ tlb_memory.write32le(0x00000108u,0xEE013F10u); // MCR SCTLR
+ tlb_memory.write32le(0x0000010cu,0xEE080F17u); // MCR p15,0,r0,c8,c7,0: invalidate unified TLB
+ tlb_memory.write32le(0x00200000u,0xE3A0002Au); // MOV r0,#42
+ tlb_memory.write32le(0x00300000u,0xE3A00063u); // MOV r0,#99
+ CPU tlb_cpu(tlb_memory);
+ tlb_cpu.reset(0x00000100u);
+ tlb_cpu.set_register(0,0u);tlb_cpu.set_register(2,1u);tlb_cpu.set_register(3,1u);
+ tlb_cpu.step();tlb_cpu.step();tlb_cpu.step();
+ tlb_cpu.set_register(15,0x00100000u);tlb_cpu.step();
+ assert(tlb_cpu.get_register(0)==42u);
+ // Change the page table. The cached mapping still points at the old page.
+ tlb_memory.write32le(0x00000004u,0x00300402u);
+ tlb_cpu.set_register(15,0x00100000u);tlb_cpu.step();
+ assert(tlb_cpu.get_register(0)==42u);
+ // Execute TLB invalidate-all from the identity-mapped maintenance region.
+ tlb_cpu.set_register(0,0u);tlb_cpu.set_register(15,0x0000010cu);tlb_cpu.step();
+ tlb_cpu.set_register(15,0x00100000u);tlb_cpu.step();
+ assert(tlb_cpu.get_register(0)==99u);
  return 0;
 }
