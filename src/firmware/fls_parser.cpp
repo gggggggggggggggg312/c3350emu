@@ -59,12 +59,12 @@ std::string FlsParser::inspect_directory(const std::filesystem::path& path,
                                              std::uintmax_t max_file_size) {
     const auto data = read_all(path, max_file_size);
     std::ostringstream out;
-    out << "C3350EMU candidate FLS directory scan\\n"
-        << "======================================\\n"
-        << "Input: " << path.string() << "\\n"
-        << "Scan: 32-byte aligned records in the first 0x1000 bytes\\n"
-        << "Pattern: four zero bytes followed by a short uppercase/underscore name\\n"
-        << "NOTE: This pattern is inferred from one BSY sample, not a confirmed format specification.\\n\\n";
+    out << "C3350EMU candidate FLS directory scan\n"
+        << "======================================\n"
+        << "Input: " << path.string() << "\n"
+        << "Scan: 32-byte aligned records in the first 0x1000 bytes\n"
+        << "Pattern: four zero bytes followed by a short uppercase/underscore name\n"
+        << "NOTE: This pattern is inferred from one BSY sample, not a confirmed format specification.\n\n";
 
     std::size_t found = 0;
     const std::size_t scan_end = std::min<std::size_t>(data.size(), 0x1000);
@@ -92,7 +92,7 @@ std::string FlsParser::inspect_directory(const std::filesystem::path& path,
         }
         if (!valid || name.empty()) continue;
 
-        out << "Record @ " << hex_u64(offset, 8) << "  name=" << name << "\\n"
+        out << "Record @ " << hex_u64(offset, 8) << "  name=" << name << "\n"
             << "  raw little-endian words:";
         for (std::size_t word = 0; word < 8; ++word) {
             const std::size_t pos = offset + word * 4;
@@ -103,12 +103,12 @@ std::string FlsParser::inspect_directory(const std::filesystem::path& path,
                 (static_cast<std::uint32_t>(data[pos + 3]) << 24);
             out << (word == 0 ? " " : ", ") << "W" << word << "=" << hex_u64(value, 8);
         }
-        out << "\\n";
+        out << "\n";
         ++found;
     }
 
-    out << "\\nCandidate records found: " << found << "\\n"
-        << "Word values are raw observations; no offsets, sizes, checksums, or load addresses are assigned meanings.\\n";
+    out << "\nCandidate records found: " << found << "\n"
+        << "Word values are raw observations; no offsets, sizes, checksums, or load addresses are assigned meanings.\n";
     return out.str();
 }
 
