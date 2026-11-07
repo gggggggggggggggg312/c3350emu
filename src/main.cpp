@@ -5,9 +5,11 @@
 #include "memory/lpddr1.hpp"
 
 #include <exception>
+#include <fstream>
 #include <iostream>
 #include <limits>
 #include <string>
+#include <vector>
 
 static void print_help(const char* program) {
     std::cout
@@ -16,6 +18,7 @@ static void print_help(const char* program) {
         << "  " << program << " --help\n"
         << "  " << program << " --platform-info\n"
         << "  " << program << " --lpddr1-sequence\n"
+        << "  " << program << " --run-raw <file> <ram-base> <ram-size> <entry> <max-instructions>\n"
         << "  " << program << " --inspect-firmware <file.fls>\n"
         << "  " << program << " --analyze-firmware <file.fls> [report.txt]\n"
         << "  " << program << " --inspect-fls-directory <file.fls>\n"
@@ -23,7 +26,7 @@ static void print_help(const char* program) {
         << "  " << program << " --load-raw-segment <file> <offset> <length> <ram-base> <ram-size> <load-address>\n\n"
         << "The native analyzer creates a text report without Python or extra dependencies.\n"
         << "The directory scanner reports candidate 32-byte records; its layout is not yet validated.\n"
-        << "Its pattern matches are research leads, not verified FLS fields or addresses.\n";
+        << "Raw execution uses a user-supplied map and entry point; it is not a verified phone boot.\n";
 }
 static void print_platform_info() {
     std::cout << "GT-C3350 provisional hardware research profile\n"
@@ -31,6 +34,16 @@ static void print_platform_info() {
     for (const auto& fact : platform::gt_c3350_research_profile())
         std::cout << fact.label << ": " << fact.value << " [" << fact.confidence << "]\n";
     std::cout << "\nNo physical memory addresses or peripheral register offsets are assumed.\n";
+}
+static std::uint64_t parse_number(const char* value, const char* label) {
+    const std::string text(value);
+    if (text.empty() || text.front() == '-')
+        throw std::runtime_error(std::string("Invalid ") + label + ".");
+    std::size_t used = 0;
+    const auto parsed = std::stoull(text, &used, 0);
+    if (used != text.size())
+        throw std::runtime_error(std::string("Invalid ") + label + ".");
+    return parsed;
 }
 int main(int argc, char** argv) {
     if (argc == 2 && std::string(argv[1]) == "--help") { print_help(argv[0]); return 0; }
@@ -46,21 +59,80 @@ int main(int argc, char** argv) {
         return 0;
     }
 
+    if (argc == 7 && std::string(argv[1]) == "--run-raw") {
+        try {
+            const auto ram_base = parse_number(argv[3], "RAM base");
+            const auto ram_size = parse_number(argv[4], "RAM size");
+            const auto entry = parse_number(argv[5], "entry point");
+            const auto instruction_limit = parse_number(argv[6], "instruction limit");
+            if (ram_base > 0xffffffffu || ram_size == 0 ||
+                ram_size > std::numeric_limits<std::size_t>::max() ||
+                ram_base + ram_size > (std::uint64_t{1} << 32) ||
+                entry > 0xffffffffu || instruction_limit == 0)
+                throw std::runtime_error("RAM, entry point, or instruction limit is out of range.");
+
+            std::ifstream input(argv[2], std::ios::binary | std::ios::ate);
+            if (!input) throw std::runtime_error("Cannot open firmware file.");
+            const auto end = input.tellg();
+            if (end <= 0) throw std::runtime_error("Firmware file is empty or unreadable.");
+            const auto file_size = static_cast<std::uint64_t>(end);
+            if (file_size > ram_size || file_size > std::numeric_limits<std::size_t>::max())
+                throw std::runtime_error("Firmware file does not fit in the configured memory region.");
+            if (entry < ram_base || entry + 4 > ram_base + file_size || (entry & 3u))
+                throw std::runtime_error("ARM entry point must be aligned and inside the loaded file.");
+
+            std::vector<std::uint8_t> image(static_cast<std::size_t>(file_size));
+            input.seekg(0, std::ios::beg);
+            if (!input.read(reinterpret_cast<char*>(image.data()),
+                            static_cast<std::streamsize>(image.size())))
+                throw std::runtime_error("Failed to read the complete firmware file.");
+
+            Memory memory;
+            memory.map(static_cast<std::uint32_t>(ram_base),
+                       static_cast<std::size_t>(ram_size), true,
+                       "user-configured raw firmware memory");
+            memory.write_block(static_cast<std::uint32_t>(ram_base), image);
+            CPU cpu(memory);
+            cpu.reset(static_cast<std::uint32_t>(entry));
+
+            std::cout << "Raw ARM execution started\n"
+                      << "File: " << argv[2] << "\n"
+                      << "Loaded bytes: " << image.size() << "\n"
+                      << "RAM base: 0x" << std::hex << ram_base
+                      << "  size: 0x" << ram_size << "\n"
+                      << "Entry: 0x" << entry << std::dec
+                      << "  instruction limit: " << instruction_limit << "\n";
+            std::string stop_reason = "instruction limit reached";
+            while (cpu.instructions_executed() < instruction_limit) {
+                try {
+                    cpu.step();
+                } catch (const std::exception& error) {
+                    stop_reason = error.what();
+                    break;
+                }
+            }
+            std::cout << "\nExecution stopped: " << stop_reason
+                      << "\nInstructions: " << cpu.instructions_executed()
+                      << "\nPC: 0x" << std::hex << cpu.getPC() << "\n";
+            for (unsigned i = 0; i < 16; ++i)
+                std::cout << "R" << std::dec << i << "=0x" << std::hex
+                          << cpu.get_register(i) << ((i % 4 == 3) ? "\n" : "  ");
+            std::cout << "CPSR=0x" << std::hex << cpu.get_cpsr() << std::dec << "\n"
+                      << "NOTE: user-configured memory only; not a verified GT-C3350 boot.\n";
+            return 0;
+        } catch (const std::exception& error) {
+            std::cerr << "Raw execution failed: " << error.what() << "\n";
+            return 1;
+        }
+    }
+
     if (argc == 8 && std::string(argv[1]) == "--load-raw-segment") {
         try {
-            const auto parse = [](const char* value, const char* label) -> std::uint64_t {
-                const std::string text(value);
-                std::size_t used = 0;
-                const auto parsed = std::stoull(text, &used, 0);
-                if (used != text.size())
-                    throw std::runtime_error(std::string("Invalid ") + label + ".");
-                return parsed;
-            };
-            const auto offset = parse(argv[3], "file offset");
-            const auto length64 = parse(argv[4], "segment length");
-            const auto ram_base64 = parse(argv[5], "RAM base");
-            const auto ram_size64 = parse(argv[6], "RAM size");
-            const auto load_address64 = parse(argv[7], "load address");
+            const auto offset = parse_number(argv[3], "file offset");
+            const auto length64 = parse_number(argv[4], "segment length");
+            const auto ram_base64 = parse_number(argv[5], "RAM base");
+            const auto ram_size64 = parse_number(argv[6], "RAM size");
+            const auto load_address64 = parse_number(argv[7], "load address");
             if (length64 > std::numeric_limits<std::size_t>::max() ||
                 ram_size64 == 0 || ram_size64 > std::numeric_limits<std::size_t>::max() ||
                 ram_base64 > 0xffffffffu || load_address64 > 0xffffffffu)
@@ -87,15 +159,11 @@ int main(int argc, char** argv) {
             return 1;
         }
     }
-\n    if ((argc == 3 || argc == 4) && std::string(argv[1]) == "--compare-firmware-set") {
+
+    if ((argc == 3 || argc == 4) && std::string(argv[1]) == "--compare-firmware-set") {
         try {
             std::size_t bytes = 4096;
-            if (argc == 4) {
-                const std::string value(argv[3]);
-                std::size_t parsed = 0;
-                bytes = static_cast<std::size_t>(std::stoull(value, &parsed, 0));
-                if (parsed != value.size()) throw std::runtime_error("Invalid comparison length.");
-            }
+            if (argc == 4) bytes = static_cast<std::size_t>(parse_number(argv[3], "comparison length"));
             std::cout << firmware::FlsParser::compare_headers_in_directory(argv[2], bytes);
             return 0;
         } catch (const std::exception& e) {
@@ -132,6 +200,6 @@ int main(int argc, char** argv) {
     }
     if(argc!=1) { print_help(argv[0]); return 2; }
     std::cout<<"C3350EMU research emulator\nARM-state interpreter: initial instruction subset implemented\n"
-             <<"Firmware boot: not implemented\nUse --platform-info or --analyze-firmware <file.fls>.\n";
+             <<"Firmware boot: not implemented\nUse --platform-info, --analyze-firmware, or --run-raw.\n";
     return 0;
 }
