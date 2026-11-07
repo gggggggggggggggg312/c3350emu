@@ -78,6 +78,8 @@ private:
     std::uint32_t cp15_ttbr0_ = 0;
     std::uint32_t cp15_dacr_ = 0;
     std::uint32_t cp15_context_id_ = 0;
+    // Minimal bank for the implementation-defined CP15 c9 registers observed in PSI.
+    std::array<std::uint32_t, 128> cp15_c9_{ };
     mutable std::array<TlbEntry, 64> tlb_{};
     Memory& memory_;
     std::array<std::uint32_t, 16> registers_{};
