@@ -26,7 +26,7 @@ int main(){
  assert((cpu.get_cpsr()&(1u<<31))!=0);
  // STMIA r4!, {r0-r2}; then LDMIA r5!, {r8-r10}.
  m.write32le(0x1030,0xE8A40007u);
- m.write32le(0x1034,0xE8B50F00u);
+ m.write32le(0x1034,0xE8B50700u);
  cpu.set_register(0,0x11);cpu.set_register(1,0x22);cpu.set_register(2,0x33);
  cpu.set_register(4,0x1200);cpu.set_register(5,0x1200);cpu.set_register(15,0x1030);
  cpu.step();assert(m.read32le(0x1200)==0x11&&m.read32le(0x1204)==0x22&&m.read32le(0x1208)==0x33);
