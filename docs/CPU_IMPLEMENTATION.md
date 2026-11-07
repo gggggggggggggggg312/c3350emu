@@ -59,3 +59,8 @@ The ARM interpreter supports the unconditional BLX-immediate encoding. It calcul
 
 
 The interpreter also supports BLX-register in ARM state and the Thumb high-register BLX form. Both preserve the caller's instruction-set state in LR and select the target state from the target address bit 0. These paths are tested with ARM-to-Thumb, Thumb-to-ARM, and return transitions.
+
+
+## ARMv6 byte-reversal operations
+
+ARM-state and Thumb encodings of REV, REV16, and REVSH are implemented and covered by synthetic instruction tests. REV reverses all four bytes, REV16 reverses bytes within each 16-bit halfword, and REVSH reverses the low halfword then sign-extends it. These ARMv6 operations can appear in compiler-generated low-level routines; their presence in this emulator does not establish that a specific C3350 firmware path requires them.
