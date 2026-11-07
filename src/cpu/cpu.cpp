@@ -19,14 +19,30 @@ bool CPU::condition_passed(unsigned q)const{
 void CPU::step(){
  const auto address=registers_[15];const auto ins=memory_.read32le(address);registers_[15]=address+4u;++instructions_executed_;
  if(!condition_passed(ins>>28))return;
- if((ins&0x0E000000u)==0x0A000000u)execute_branch(ins);
+ if((ins&0x0FC000F0u)==0x00000090u)execute_multiply(ins);
+ else if((ins&0x0E000000u)==0x0A000000u)execute_branch(ins);
  else if((ins&0x0C000000u)==0x04000000u)execute_single_transfer(ins);
  else if((ins&0x0C000000u)==0||((ins&0x0C000000u)==0x02000000u))execute_data_processing(ins);
  else throw std::runtime_error("Unsupported ARM instruction encoding");
 }
 void CPU::execute_branch(std::uint32_t ins){
  const auto off=static_cast<std::int32_t>(ins<<8)>>6;const auto target=registers_[15]+static_cast<std::uint32_t>(off);
- if(ins&(1u<<24))registers_[14]=registers_[15]-4u;registers_[15]=target;
+ if(ins&(1u<<24))registers_[14]=registers_[15]-4u;
+ registers_[15]=target;
+}
+void CPU::execute_multiply(std::uint32_t ins){
+ const bool accumulate=ins&(1u<<21),set_flags=ins&(1u<<20);
+ const unsigned rd=(ins>>16)&15,rn=(ins>>12)&15,rs=(ins>>8)&15,rm=ins&15;
+ if(rd==15||rs==15||rm==15||(accumulate&&rn==15))
+  throw std::runtime_error("MUL/MLA with PC register is unsupported or unpredictable");
+ std::uint32_t result=registers_[rm]*registers_[rs];
+ if(accumulate)result+=registers_[rn];
+ registers_[rd]=result;
+ if(set_flags){
+  cpsr_&=~(N|Z);
+  if(result&0x80000000u)cpsr_|=N;
+  if(result==0)cpsr_|=Z;
+ }
 }
 void CPU::execute_data_processing(std::uint32_t ins){
  const bool imm=ins&(1u<<25),s=ins&(1u<<20);const unsigned op=(ins>>21)&15,rn=(ins>>16)&15,rd=(ins>>12)&15;
