@@ -12,6 +12,10 @@ public:
     void set_register(unsigned index, std::uint32_t value);
     [[nodiscard]] std::uint32_t get_cpsr() const;
     [[nodiscard]] std::uint64_t instructions_executed() const noexcept;
+    [[nodiscard]] std::uint32_t get_data_fault_status() const noexcept;
+    [[nodiscard]] std::uint32_t get_instruction_fault_status() const noexcept;
+    [[nodiscard]] std::uint32_t get_data_fault_address() const noexcept;
+    [[nodiscard]] std::uint32_t get_instruction_fault_address() const noexcept;
 private:
     bool condition_passed(unsigned condition) const;
     std::uint32_t read_operand_register(unsigned index) const;
@@ -30,6 +34,13 @@ private:
     void switch_mode(std::uint32_t new_mode);
     void execute_status_transfer(std::uint32_t instruction);
     void enter_svc_exception(std::uint32_t return_address);
+    void enter_abort_exception(bool prefetch, std::uint32_t fault_pc);
+    void step_unchecked();
+    bool fetching_instruction_ = false;
+    mutable std::uint32_t fault_address_ = 0;
+    mutable std::uint32_t fault_status_ = 0;
+    std::uint32_t data_fault_status_ = 0, instruction_fault_status_ = 0;
+    std::uint32_t data_fault_address_ = 0, instruction_fault_address_ = 0;
     struct TlbEntry {
         bool valid = false;
         std::uint32_t virtual_page = 0;
