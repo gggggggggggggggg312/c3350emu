@@ -22,6 +22,11 @@ private:
     void execute_multiply(std::uint32_t instruction);
     void execute_block_transfer(std::uint32_t instruction);
     void execute_thumb(std::uint16_t instruction);
+    void execute_cp15_transfer(std::uint32_t instruction);
+    std::uint32_t cp15_control_ = 0;
+    std::uint32_t cp15_ttbr0_ = 0;
+    std::uint32_t cp15_dacr_ = 0;
+    std::uint32_t cp15_context_id_ = 0;
     Memory& memory_;
     std::array<std::uint32_t, 16> registers_{};
     std::uint32_t cpsr_ = 0;
