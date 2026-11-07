@@ -9,6 +9,7 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 add_library(c3350_core
     src/cpu/cpu.cpp
     src/firmware/fls_parser.cpp
+    src/firmware/boot_plan.cpp
     src/memory/memory.cpp
     src/memory/lpddr1.cpp
     src/platform/platform.cpp
@@ -38,6 +39,10 @@ if(BUILD_TESTING)
     add_executable(test_memory tests/test_memory.cpp)
     target_link_libraries(test_memory PRIVATE c3350_core)
     add_test(NAME memory_tests COMMAND test_memory)
+
+    add_executable(test_boot_plan tests/test_boot_plan.cpp)
+    target_link_libraries(test_boot_plan PRIVATE c3350_core)
+    add_test(NAME boot_plan_tests COMMAND test_boot_plan)
 
     add_executable(test_fls_parser tests/test_fls_parser.cpp)
     target_link_libraries(test_fls_parser PRIVATE c3350_core)
