@@ -55,7 +55,8 @@ private:
     std::uint32_t cp15_control_ = 0;
     std::uint32_t cp15_ttbr0_ = 0;
     std::uint32_t cp15_dacr_ = 0;
-    std::uint32_t cp15_context_id_ = 0;\n    mutable std::array<TlbEntry, 64> tlb_{};
+    std::uint32_t cp15_context_id_ = 0;
+    mutable std::array<TlbEntry, 64> tlb_{};
     Memory& memory_;
     std::array<std::uint32_t, 16> registers_{};
     std::uint32_t cpsr_ = 0;
