@@ -21,6 +21,13 @@ target_include_directories(c3350_core PUBLIC
 add_executable(c3350emu src/main.cpp)
 target_link_libraries(c3350emu PRIVATE c3350_core)
 
+if(WIN32)
+    add_executable(c3350emu-gui WIN32 src/gui/main.cpp)
+    target_link_libraries(c3350emu-gui PRIVATE c3350_core comdlg32)
+else()
+    add_executable(c3350emu-gui src/gui/linux_stub.cpp)
+endif()
+
 include(CTest)
 if(BUILD_TESTING)
     add_executable(test_lpddr1 tests/test_lpddr1.cpp)
