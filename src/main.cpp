@@ -1,5 +1,6 @@
 #include "cpu/cpu.hpp"
 #include "firmware/fls_parser.hpp"
+#include "firmware/fls_structure.hpp"
 #include "firmware/boot_plan.hpp"
 #include "platform/platform.hpp"
 #include "platform/battery.hpp"
@@ -436,6 +437,23 @@ int main(int argc, char** argv) {
             return 0;
         } catch (const std::exception& e) {
             std::cerr << "Directory inspection failed: " << e.what() << "\n";
+            return 1;
+        }
+    }
+    if ((argc == 3 || argc == 4) && std::string(argv[1]) == "--decode-fls") {
+        try {
+            const auto decoded = firmware::decode_fls_structure(argv[2]);
+            if (argc == 4) {
+                std::ofstream out(argv[3], std::ios::binary);
+                if (!out) throw std::runtime_error("Cannot create FLS decode report.");
+                out << decoded;
+                if (!out) throw std::runtime_error("Failed writing FLS decode report.");
+                std::cout << "Structural decode report saved: " << argv[3] << "\\n";
+            }
+            std::cout << decoded;
+            return 0;
+        } catch (const std::exception& e) {
+            std::cerr << "FLS structural decode failed: " << e.what() << "\\n";
             return 1;
         }
     }
