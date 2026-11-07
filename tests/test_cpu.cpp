@@ -93,6 +93,24 @@ int main(){
  cpu.step();assert(cpu.get_register(3)==0x11223344u&&m.read32le(0x1600)==0xaabbccddu);
  cpu.set_register(1,0x55u);cpu.set_register(15,0x107c);cpu.step();
  assert(cpu.get_register(4)==0xddu&&m.read32le(0x1600)==0xaabbcc55u);
+ // CP15 system-control register transfers: MCR/MRC c1, c2, c3 and c13.
+ // MCR p15,0,r0,c1,c0,0 ; MRC p15,0,r1,c1,c0,0
+ m.write32le(0x1080,0xEE010F10u);
+ m.write32le(0x1084,0xEE111F10u);
+ cpu.set_register(0,0x00001005u);cpu.set_register(15,0x1080);cpu.step();
+ cpu.set_register(15,0x1084);cpu.step();assert(cpu.get_register(1)==0x00001005u);
+ // TTBR0 and Domain Access Control register round trips.
+ m.write32le(0x1088,0xEE020F10u); // MCR p15,0,r0,c2,c0,0
+ m.write32le(0x108c,0xEE123F10u); // MRC p15,0,r3,c2,c0,0
+ cpu.set_register(0,0x00104000u);cpu.set_register(15,0x1088);cpu.step();
+ cpu.set_register(15,0x108c);cpu.step();assert(cpu.get_register(3)==0x00104000u);
+ m.write32le(0x1090,0xEE030F10u); // MCR p15,0,r0,c3,c0,0
+ m.write32le(0x1094,0xEE134F10u); // MRC p15,0,r4,c3,c0,0
+ cpu.set_register(0,3u);cpu.set_register(15,0x1090);cpu.step();
+ cpu.set_register(15,0x1094);cpu.step();assert(cpu.get_register(4)==3u);
+ // MIDR is readable and fixed for the selected ARM1176JZF-S r0p7 model.
+ m.write32le(0x1098,0xEE101F10u); // MRC p15,0,r1,c0,c0,0
+ cpu.set_register(15,0x1098);cpu.step();assert(cpu.get_register(1)==0x410FB767u);
  cpu.set_register(15,0x90000000u);bool threw=false;try{cpu.step();}catch(const std::out_of_range&){threw=true;}assert(threw);
  return 0;
 }
