@@ -204,5 +204,34 @@ int main(){
   mmu_fault=std::string(e.what()).find("MMU translation fault")!=std::string::npos;
  }
  assert(mmu_fault);
+ // Coarse-table translation: map a 4 KB virtual page to physical RAM.
+ Memory page_memory;
+ page_memory.map(0x00000000u,0x5000u,true,"L1/L2 translation tables and setup RAM");
+ page_memory.map(0x00200000u,0x1000u,true,"Mapped 4 KB physical page");
+ page_memory.write32le(0x00000004u,0x00004001u); // L1 coarse descriptor, domain 0
+ page_memory.write32le(0x00004000u,0x00200012u); // L2 small-page descriptor, AP=01
+ page_memory.write32le(0x00000100u,0xEE020F10u); // MCR TTBR0
+ page_memory.write32le(0x00000104u,0xEE032F10u); // MCR DACR
+ page_memory.write32le(0x00000108u,0xEE013F10u); // MCR SCTLR
+ page_memory.write32le(0x00200000u,0xE3A0002Au); // MOV r0,#42
+ page_memory.write32le(0x00200004u,0xE5810000u); // STR r0,[r1]
+ page_memory.write32le(0x00200008u,0xE5912000u); // LDR r2,[r1]
+ CPU page_cpu(page_memory);
+ page_cpu.reset(0x00000100u);
+ page_cpu.set_register(0,0u);page_cpu.set_register(2,1u);page_cpu.set_register(3,1u);
+ page_cpu.set_register(1,0x00100100u);
+ page_cpu.step();page_cpu.step();page_cpu.step();
+ page_cpu.set_register(15,0x00100000u);
+ page_cpu.step();assert(page_cpu.get_register(0)==42u);
+ page_cpu.step();assert(page_memory.read32le(0x00200100u)==42u);
+ page_cpu.step();assert(page_cpu.get_register(2)==42u);
+ // AP=00 denies access in a client domain.
+ page_memory.write32le(0x00004000u,0x00200002u);
+ page_cpu.set_register(15,0x00100000u);
+ bool permission_fault=false;
+ try{page_cpu.step();}catch(const std::runtime_error& e){
+  permission_fault=std::string(e.what()).find("permission fault")!=std::string::npos;
+ }
+ assert(permission_fault);
  return 0;
 }
