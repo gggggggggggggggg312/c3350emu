@@ -415,5 +415,18 @@ int main(){
  assert(prefetch_cpu.get_instruction_fault_address()==0x90000000u);
  assert(prefetch_cpu.get_instruction_fault_status()==0x8u);
  assert(prefetch_cpu.get_register(14)==0x90000004u);
+
+ // Execute the exact SLB cache-maintenance sequence observed at file offset
+ // 0x1110: MOV R0,#0; invalidate I-cache; invalidate D-cache; MOV R0,R0; BX LR.
+ // This verifies the firmware sequence is accepted as real CPU instructions.
+ m.write32le(0x1700u,0xE3A00000u); // MOV R0,#0
+ m.write32le(0x1704u,0xEE070F15u); // MCR p15,0,R0,c7,c5,0
+ m.write32le(0x1708u,0xEE070F16u); // MCR p15,0,R0,c7,c6,0
+ m.write32le(0x170cu,0xE1A00000u); // MOV R0,R0
+ m.write32le(0x1710u,0xE12FFF1Eu); // BX LR
+ cpu.reset(0x1700u);cpu.set_register(14,0x1800u);
+ for(unsigned i=0;i<5;++i)cpu.step();
+ assert(cpu.getPC()==0x1800u);
+ assert(cpu.get_register(0)==0u);
  return 0;
 }
