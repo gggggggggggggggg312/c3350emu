@@ -20,6 +20,7 @@ public:
     std::uint32_t read32le(std::uint32_t address) const;
     void write8(std::uint32_t address, std::uint8_t value);
     void write32le(std::uint32_t address, std::uint32_t value);
+    void write_block(std::uint32_t address, const std::vector<std::uint8_t>& data);
     std::size_t region_count() const noexcept;
 
 private:
