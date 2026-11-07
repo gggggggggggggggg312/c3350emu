@@ -203,3 +203,6 @@ Run `c3350emu.exe --run-boot-plan boot.plan`. Each SEGMENT line is `file offset 
 
 
 Boot plans support `COPY source destination length` and `ZERO destination length` operations before CPU entry. COPY stages initialized data in RAM; ZERO clears BSS-like memory. Both use explicitly configured RAM addresses, not verified C3350 physical addresses.
+
+
+Boot plans support `STACK address` to initialize SP (R13), and `REG index value` to initialize R0-R14 before the first firmware instruction. Register indices 0-14 are accepted; duplicate register assignments are rejected. STACK may point to the end of the configured RAM window, a common downward-growing stack convention. These are user-supplied startup values, not verified C3350 reset values.
