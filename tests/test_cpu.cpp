@@ -12,15 +12,15 @@ int main(){
  cpu.step();assert(cpu.get_register(3)==3&&cpu.instructions_executed()==4);
  m.write32le(0x1010,0x03A04055u);cpu.set_register(15,0x1010);cpu.step();assert(cpu.get_register(4)==0);
  // MUL r6, r1, r2
- m.write32le(0x1020,0xE0006291u);
+ m.write32le(0x1020,0xE0060291u);
  cpu.set_register(1,7);cpu.set_register(2,6);cpu.set_register(15,0x1020);cpu.step();
  assert(cpu.get_register(6)==42);
  // MLA r7, r1, r2, r3 = 7*6+5
- m.write32le(0x1024,0xE0237291u);
+ m.write32le(0x1024,0xE0273291u);
  cpu.set_register(3,5);cpu.set_register(15,0x1024);cpu.step();
  assert(cpu.get_register(7)==47);
- // MULS r8, r1, r2 sets N/Z from result only.
- m.write32le(0x1028,0xE0108291u);
+ // MULS r8, r1, r2 updates N/Z from the result.
+ m.write32le(0x1028,0xE0180291u);
  cpu.set_register(1,0xffffffffu);cpu.set_register(2,2);cpu.set_register(15,0x1028);cpu.step();
  assert(cpu.get_register(8)==0xfffffffeu);
  assert((cpu.get_cpsr()&(1u<<31))!=0);
