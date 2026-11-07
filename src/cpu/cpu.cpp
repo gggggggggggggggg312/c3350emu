@@ -97,8 +97,20 @@ void CPU::execute_data_processing(std::uint32_t ins){
 }
 void CPU::execute_single_transfer(std::uint32_t ins){
  const bool reg=ins&(1u<<25),pre=ins&(1u<<24),up=ins&(1u<<23),byte=ins&(1u<<22),wb=ins&(1u<<21),load=ins&(1u<<20);
- const unsigned rn=(ins>>16)&15,rd=(ins>>12)&15;if(reg&&(ins&(1u<<4)))throw std::runtime_error("Register-shifted transfer offsets not implemented");
- const auto base=read_operand_register(rn);const auto off=reg?read_operand_register(ins&15):(ins&0xfffu);const auto adjusted=up?base+off:base-off;const auto address=pre?adjusted:base;
+ const unsigned rn=(ins>>16)&15,rd=(ins>>12)&15;
+ if(reg&&(ins&(1u<<4)))throw std::runtime_error("Register-shifted transfer offsets are unpredictable");
+ const auto base=read_operand_register(rn);
+ std::uint32_t off=ins&0xfffu;
+ if(reg){
+  const auto value=read_operand_register(ins&15u);
+  const unsigned type=(ins>>5)&3u,amount=(ins>>7)&31u;
+  if(type==0u)off=amount?value<<amount:value;
+  else if(type==1u)off=amount?value>>amount:0u;
+  else if(type==2u)off=amount?static_cast<std::uint32_t>(static_cast<std::int32_t>(value)>>amount):((value&0x80000000u)?0xffffffffu:0u);
+  else if(amount==0u)off=((cpsr_&C)?0x80000000u:0u)|(value>>1);
+  else off=ror(value,amount);
+ }
+ const auto adjusted=up?base+off:base-off;const auto address=pre?adjusted:base;
  if(load){const auto value=byte?memory_.read8(address):memory_.read32le(address);if(rd==15)registers_[15]=value;else registers_[rd]=value;}
  else{const auto value=read_operand_register(rd);if(byte)memory_.write8(address,std::uint8_t(value));else memory_.write32le(address,value);}
  if(!pre||wb)registers_[rn]=adjusted;
