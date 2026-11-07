@@ -20,6 +20,7 @@ private:
     void execute_branch(std::uint32_t instruction);
     void execute_multiply(std::uint32_t instruction);
     void execute_block_transfer(std::uint32_t instruction);
+    void execute_thumb(std::uint16_t instruction);
     Memory& memory_;
     std::array<std::uint32_t, 16> registers_{};
     std::uint32_t cpsr_ = 0;
