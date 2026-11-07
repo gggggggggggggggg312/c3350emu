@@ -56,6 +56,36 @@ https://forum.gsmhosting.com/vbb/f311/successfully-unlocked-flashed-phones-hwk-7
 | RAM reset contents and aliases | Unknown |
 | C3350 physical RAM map | Not established |
 
+## New memory-component clue: OneNAND is not RAM
+
+A C3350-specific service/unlock log reports the phone's memory marking as
+`K5W1G12ACP(C3350)S`. A Samsung component listing for the closely matching
+`K5W1G12ACP-BL500TN` identifies a 1-Gbit MuxOneNAND part. This is a strong
+lead that the marked component is the phone's non-volatile flash-storage
+device, not its working RAM. The exact suffix and package variant still need
+a manufacturer datasheet or board-level confirmation.
+
+Evidence:
+- C3350-specific chip marking: https://forum.gsmhosting.com/vbb/f453/gt-c3350-unlock-flash-done-1442539/
+- Samsung part-family listing: https://www.scribd.com/document/900347024/HHP-Spare-Price-List-10-2021
+
+**Important correction for emulator research:** do not allocate 1 Gbit (128 MiB)
+of RAM because of this chip marking. OneNAND is a separate non-volatile storage
+device. The XMM2150 platform brief separately lists SRAM and an external
+NAND/LPDDR1 memory subsystem, so the LPDDR1 part and its controller remain the
+main RAM investigation target.
+
+The GT-C3350 product specification pages report around 30-38 MB of internal
+user storage. That is not a measurement of physical LPDDR capacity and must
+not be used as the RAM size.
+
+| Component | Best current interpretation | Confidence |
+|---|---|---|
+| `K5W1G12ACP(C3350)S` | Likely OneNAND flash-storage component | Strong family-level lead; exact suffix unverified |
+| On-chip SRAM | Present in XMM2150 platform | Confirmed by Intel platform brief |
+| External LPDDR1 | Used by XMM2150 platform family | Confirmed technology; C3350 capacity and part number unknown |
+| Physical RAM size and address map | Unknown | No verified C3350-specific evidence yet |
+
 ## Explicitly unknown
 
 - Exact ARM1176 implementation suffix (for example, JZ/JZF-S), silicon revision/rXpY, clock and boot exception state.
