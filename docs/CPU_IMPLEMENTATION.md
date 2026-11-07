@@ -42,3 +42,12 @@ ctest --test-dir build --output-on-failure
 3. Add Thumb execution if the target uses it.
 4. Parse actual firmware sections and establish their load/entry addresses from binary evidence.
 5. Connect the CPU to a verified memory map and progressively implement required peripherals.
+
+
+## ARM exclusive accesses
+
+- ARM word `LDREX` establishes a local exclusive reservation for the translated physical word.
+- ARM word `STREX` writes only when the reservation matches, returning status 0 on success and 1 on failure.
+- Any CPU-originated store clears the local reservation; reset also clears it.
+- Unaligned word-exclusive accesses and PC-register forms are rejected.
+- This is a simplified local monitor. It does not model external bus masters, multiprocessor shareability, cache-coherency protocols, or every ARM1176 exclusive-monitor rule.
