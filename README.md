@@ -200,3 +200,6 @@ SEGMENT "C3350XXKK1_BIN_CDS.fls" 0x4000 0x50000 0x01090000
 ```
 
 Run `c3350emu.exe --run-boot-plan boot.plan`. Each SEGMENT line is `file offset length load-address`; paths are relative to the plan file. The loader verifies ranges, rejects overlapping RAM destinations, stages all selected bytes into one shared memory map, and starts one CPU at ENTRY. Optional `BREAK 0xADDRESS` stops before executing a chosen PC, useful for observing a boot-stage handoff. Optional `TRACE "boot-trace.csv"` records executed PCs, ARM/Thumb state, opcodes, source firmware filename and source offset, next PC, and CPSR. The CPU can branch between the staged regions. Replace every example offset, length, address, and entry with verified values before using real firmware. The example numbers are deliberately placeholders and are not claimed to match the Samsung FLS format.
+
+
+Boot plans support `COPY source destination length` and `ZERO destination length` operations before CPU entry. COPY stages initialized data in RAM; ZERO clears BSS-like memory. Both use explicitly configured RAM addresses, not verified C3350 physical addresses.
