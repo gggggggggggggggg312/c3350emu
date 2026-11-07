@@ -46,6 +46,12 @@ BootPlan parse_boot_plan(const std::filesystem::path& path) {
             } else if(command=="LIMIT") {
                 std::string value,extra;if(!(row>>value)||row>>extra)throw std::runtime_error("LIMIT requires one instruction count");
                 plan.instruction_limit=number(value,"instruction limit");if(!plan.instruction_limit)throw std::runtime_error("Instruction limit must be nonzero");have_limit=true;
+            } else if(command=="BREAK") {
+                std::string value,extra;
+                if(!(row>>value)||row>>extra)throw std::runtime_error("BREAK requires one address");
+                const auto address=number(value,"breakpoint");
+                if(address>0xffffffffu)throw std::runtime_error("Breakpoint exceeds 32 bits");
+                plan.breakpoints.push_back(static_cast<std::uint32_t>(address));
             } else if(command=="TRACE") {
                 std::string file,extra;
                 if(!(row>>std::quoted(file))||row>>extra)throw std::runtime_error("TRACE requires one quoted output path");
