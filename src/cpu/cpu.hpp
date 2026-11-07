@@ -38,6 +38,14 @@ private:
     };
     void invalidate_tlb_all();
     void invalidate_tlb_mva(std::uint32_t address);
+    struct CacheLine { bool valid = false; std::uint32_t tag = 0; std::array<std::uint8_t, 32> bytes{}; };
+    static constexpr std::size_t CacheLineCount = 128;
+    mutable std::array<CacheLine, CacheLineCount> instruction_cache_{};
+    mutable std::array<CacheLine, CacheLineCount> data_cache_{};
+    std::uint8_t cached_read8(std::uint32_t physical, bool instruction) const;
+    void cached_write8(std::uint32_t physical, std::uint8_t value);
+    void invalidate_instruction_cache(std::uint32_t address, bool all);
+    void invalidate_data_cache(std::uint32_t address, bool all);
     std::uint32_t translate_address(std::uint32_t virtual_address, bool write) const;
     std::uint8_t read_virtual8(std::uint32_t address) const;
     std::uint32_t read_virtual32(std::uint32_t address) const;
