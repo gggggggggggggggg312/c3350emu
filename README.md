@@ -8,6 +8,7 @@ This project is in the firmware-analysis and infrastructure stage. It does **not
 
 Current functionality:
 - C++ command-line application.
+- Provisional GT-C3350 hardware research profile, available with --platform-info.
 - Conservative FLS file inspection: file size and raw header bytes.
 - Python firmware inspector: SHA-256, header dump, and printable-string sampling.
 - Basic 32-bit address-space memory map with read/write permissions.
@@ -16,12 +17,17 @@ Current functionality:
 
 The FLS parser is intentionally conservative. The complete Samsung FLS container structure, segment records, checksums, load addresses, and entry-point rules have not yet been verified. The current parser does not claim to extract executable sections.
 
-## Hardware research notes
+## Hardware research
 
-- Firmware package under investigation: `C3350XXKK1_OXEKK1`.
-- Firmware strings include `XMM2150` and `xmm2150_BOOTLOADER_VERSION_3_1`.
-- ARM-like instruction patterns were observed in a candidate PSI region. They must be validated against confirmed segment boundaries and execution addresses before selecting a CPU core.
-- Do not infer the exact processor core, ARM version, memory map, or peripheral layout from the platform name alone.
+Current evidence points to the Intel XMM2150 platform family and an ARM11 CPU family. A C3350 service log reports the memory marking K5W1G12ACP(C3350)S, while related part-number documentation suggests a MuxOneNAND device. The exact fitted memory variant and its register map still need confirmation.
+
+A C3350 flashing log reports bootloader identifier 2150_OD_KJ1_3.1, protocol 3.32, boot mode BB, flash ID 003000EC, and a download sequence in which BSY is handled as two regions. These downloader region numbers are **not** treated as CPU physical addresses.
+
+See:
+- docs/HARDWARE_RESEARCH.md
+- docs/FIRMWARE_BOOT_FLOW.md
+
+The emulator deliberately does not guess physical RAM addresses, OneNAND register offsets, CPU clock, or peripheral addresses.
 
 ## Repository layout
 
@@ -29,12 +35,16 @@ The FLS parser is intentionally conservative. The complete Samsung FLS container
 C3350EMU/
 ├── .github/workflows/build.yml
 ├── CMakeLists.txt
+├── docs/
+│   ├── FIRMWARE_BOOT_FLOW.md
+│   └── HARDWARE_RESEARCH.md
 ├── firmware/                 # Local firmware; binaries are not committed
 ├── src/
 │   ├── main.cpp
 │   ├── cpu/                  # CPU scaffold; execution not implemented
 │   ├── firmware/             # Conservative FLS inspection
-│   └── memory/               # Basic memory-region implementation
+│   ├── memory/               # Basic memory-region implementation
+│   └── platform/             # Provisional hardware research profile
 ├── tests/
 │   ├── test_fls_parser.cpp
 │   └── test_memory.cpp
@@ -52,6 +62,7 @@ cmake -S . -B build -A x64
 cmake --build build --config Release
 ctest --test-dir build -C Release --output-on-failure
 .\build\Release\c3350emu.exe --help
+.\build\Release\c3350emu.exe --platform-info
 ```
 
 ## Build on Linux
@@ -63,6 +74,7 @@ cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
 cmake --build build --parallel
 ctest --test-dir build --output-on-failure
 ./build/c3350emu --help
+./build/c3350emu --platform-info
 ```
 
 ## Inspect firmware
@@ -93,8 +105,8 @@ Treat candidate disassembly as a hypothesis until executable sections and addres
 ## GitHub Actions builds
 
 Pushes and pull requests trigger Windows and Linux builds plus tests. Download the latest successful build from the repository's Actions tab under Artifacts:
-- `C3350EMU-windows-x64`
-- `C3350EMU-linux-x64`
+- C3350EMU-windows-x64
+- C3350EMU-linux-x64
 
 Artifacts currently expire after 30 days. These are research tools, not a bootable phone emulator.
 
