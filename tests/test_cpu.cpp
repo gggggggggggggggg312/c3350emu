@@ -380,6 +380,16 @@ int main(){
  exclusive_cpu.step();exclusive_cpu.step();exclusive_cpu.step();
  assert(exclusive_cpu.get_register(2)==1u);
 
+ // CLREX explicitly clears the local reservation, so a later STREX fails.
+ exclusive_memory.write32le(0x1020u,0xE1901F9Fu); // LDREX r1,[r0]
+ exclusive_memory.write32le(0x1024u,0xF57FF01Fu); // CLREX
+ exclusive_memory.write32le(0x1028u,0xE1802F93u); // STREX r2,r3,[r0]
+ exclusive_memory.write32le(0x1100u,0x12345678u);
+ exclusive_cpu.set_register(15,0x1020u);
+ exclusive_cpu.step();exclusive_cpu.step();exclusive_cpu.step();
+ assert(exclusive_cpu.get_register(2)==1u);
+ assert(exclusive_memory.read32le(0x1100u)==0x12345678u);
+
  // Data Abort: an unmapped LDR enters Abort mode at vector 0x10.
  Memory abort_memory;
  abort_memory.map(0x00000000u,0x2000u,true,"Abort vectors and test code");
