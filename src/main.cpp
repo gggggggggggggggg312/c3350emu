@@ -14,6 +14,7 @@
 #include <iostream>
 #include <limits>
 #include <string>
+#include <sstream>
 #include <vector>
 
 static void print_help(const char* program) {
@@ -129,6 +130,10 @@ int main(int argc, char** argv) {
             while(steps<plan.instruction_limit &&
                   cpu.instructions_executed()<plan.instruction_limit) {
                 const auto pc=cpu.getPC();
+                if(std::find(plan.breakpoints.begin(),plan.breakpoints.end(),pc)!=plan.breakpoints.end()) {
+                    reason="breakpoint reached at 0x"+[&](){std::ostringstream s;s<<std::hex<<pc;return s.str();}();
+                    break;
+                }
                 const auto cpsr=cpu.get_cpsr();
                 const bool thumb=(cpsr&(1u<<5))!=0;
                 std::uint32_t opcode=0;
