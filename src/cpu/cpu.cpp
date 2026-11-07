@@ -22,13 +22,12 @@ void CPU::step(){
   const auto ins=static_cast<std::uint16_t>(memory_.read8(address) |
       (static_cast<std::uint16_t>(memory_.read8(address+1u))<<8));
   registers_[15]=address+2u;++instructions_executed_;
-  execute_thumb(ins);
-  return;
+  execute_thumb(ins);return;
  }
  const auto ins=memory_.read32le(address);registers_[15]=address+4u;++instructions_executed_;
  if(!condition_passed(ins>>28))return;
  if((ins&0x0FFFFFF0u)==0x012FFF10u){
-  const unsigned rm=ins&15u;const auto target=read_operand_register(rm);
+  const auto target=read_operand_register(ins&15u);
   if(target&1u){cpsr_|=(1u<<5);registers_[15]=target&~1u;}
   else{cpsr_&=~(1u<<5);registers_[15]=target&~3u;}
  }
@@ -38,6 +37,88 @@ void CPU::step(){
  else if((ins&0x0C000000u)==0x04000000u)execute_single_transfer(ins);
  else if((ins&0x0C000000u)==0||((ins&0x0C000000u)==0x02000000u))execute_data_processing(ins);
  else throw std::runtime_error("Unsupported ARM instruction encoding");
+}
+void CPU::execute_branch(std::uint32_t ins){
+ const auto off=static_cast<std::int32_t>(ins<<8)>>6;const auto target=registers_[15]+static_cast<std::uint32_t>(off);
+ if(ins&(1u<<24))registers_[14]=registers_[15]-4u;
+ registers_[15]=target;
+}
+void CPU::execute_multiply(std::uint32_t ins){
+ const bool accumulate=ins&(1u<<21),set_flags=ins&(1u<<20);
+ const unsigned rd=(ins>>16)&15,rn=(ins>>12)&15,rs=(ins>>8)&15,rm=ins&15;
+ if(rd==15||rs==15||rm==15||(accumulate&&rn==15))
+  throw std::runtime_error("MUL/MLA with PC register is unsupported or unpredictable");
+ std::uint32_t result=registers_[rm]*registers_[rs];
+ if(accumulate)result+=registers_[rn];
+ registers_[rd]=result;
+ if(set_flags){
+  cpsr_&=~(N|Z);
+  if(result&0x80000000u)cpsr_|=N;
+  if(result==0)cpsr_|=Z;
+ }
+}
+void CPU::execute_data_processing(std::uint32_t ins){
+ const bool imm=ins&(1u<<25),s=ins&(1u<<20);const unsigned op=(ins>>21)&15,rn=(ins>>16)&15,rd=(ins>>12)&15;
+ std::uint32_t b=0;bool shcarry=cpsr_&C;
+ if(imm){const unsigned rot=((ins>>8)&15)*2;b=ror(ins&255u,rot);if(rot)shcarry=b>>31;}
+ else{
+  if(ins&(1u<<4))throw std::runtime_error("Register-specified shifts not implemented");
+  const unsigned rm=ins&15,type=(ins>>5)&3,amount=(ins>>7)&31;const auto val=read_operand_register(rm);
+  if(!amount)b=val;
+  else if(type==0){b=val<<amount;shcarry=(val>>(32-amount))&1u;}
+  else if(type==1){b=val>>amount;shcarry=(val>>(amount-1))&1u;}
+  else if(type==2){b=static_cast<std::uint32_t>(static_cast<std::int32_t>(val)>>amount);shcarry=(val>>(amount-1))&1u;}
+  else{b=ror(val,amount);shcarry=b>>31;}
+ }
+ const std::uint32_t a=read_operand_register(rn);std::uint32_t r=0;bool arithmetic=false,carry=false,overflow=false;
+ switch(op){
+ case 0:r=a&b;break;case 1:r=a^b;break;
+ case 2:r=a-b;arithmetic=true;carry=a>=b;overflow=(((a^b)&(a^r))>>31)!=0;break;
+ case 3:r=b-a;arithmetic=true;carry=b>=a;overflow=(((b^a)&(b^r))>>31)!=0;break;
+ case 4:{std::uint64_t t=std::uint64_t(a)+b;r=std::uint32_t(t);arithmetic=true;carry=t>>32;overflow=((~(a^b)&(a^r))>>31)!=0;break;}
+ case 8:r=a&b;break;case 9:r=a^b;break;
+ case 10:r=a-b;arithmetic=true;carry=a>=b;overflow=(((a^b)&(a^r))>>31)!=0;break;
+ case 11:{std::uint64_t t=std::uint64_t(a)+b;r=std::uint32_t(t);arithmetic=true;carry=t>>32;overflow=((~(a^b)&(a^r))>>31)!=0;break;}
+ case 12:r=a|b;break;case 13:r=b;break;case 14:r=a&~b;break;case 15:r=~b;break;
+ default:throw std::runtime_error("Unsupported ARM data-processing opcode");
+ }
+ const bool test=op>=8&&op<=11;if(!test){if(rd==15)registers_[15]=r;else registers_[rd]=r;}
+ if(s||test){cpsr_&=~NZCV;if(r&0x80000000u)cpsr_|=N;if(!r)cpsr_|=Z;if(arithmetic){if(carry)cpsr_|=C;if(overflow)cpsr_|=V;}else if(shcarry)cpsr_|=C;}
+}
+void CPU::execute_single_transfer(std::uint32_t ins){
+ const bool reg=ins&(1u<<25),pre=ins&(1u<<24),up=ins&(1u<<23),byte=ins&(1u<<22),wb=ins&(1u<<21),load=ins&(1u<<20);
+ const unsigned rn=(ins>>16)&15,rd=(ins>>12)&15;if(reg&&(ins&(1u<<4)))throw std::runtime_error("Register-shifted transfer offsets not implemented");
+ const auto base=read_operand_register(rn);const auto off=reg?read_operand_register(ins&15):(ins&0xfffu);const auto adjusted=up?base+off:base-off;const auto address=pre?adjusted:base;
+ if(load){const auto value=byte?memory_.read8(address):memory_.read32le(address);if(rd==15)registers_[15]=value;else registers_[rd]=value;}
+ else{const auto value=read_operand_register(rd);if(byte)memory_.write8(address,std::uint8_t(value));else memory_.write32le(address,value);}
+ if(!pre||wb)registers_[rn]=adjusted;
+}
+
+void CPU::execute_block_transfer(std::uint32_t ins){
+ const bool pre=ins&(1u<<24),up=ins&(1u<<23),writeback=ins&(1u<<21),load=ins&(1u<<20);
+ const unsigned rn=(ins>>16)&15;
+ const std::uint16_t list=static_cast<std::uint16_t>(ins&0xffffu);
+ if(list==0)throw std::runtime_error("Empty ARM block-transfer register list is unsupported");
+ unsigned count=0;
+ for(unsigned bit=0;bit<16;++bit)if(list&(1u<<bit))++count;
+ const std::uint32_t base=read_operand_register(rn);
+ if(writeback&&(list&(1u<<rn)))
+  throw std::runtime_error("Block transfer with writeback and base in register list is unsupported");
+ std::uint32_t address;
+ if(up) address=base+(pre?4u:0u);
+ else address=base-(4u*count)+(pre?0u:4u);
+ for(unsigned reg=0;reg<16;++reg){
+  if(!(list&(1u<<reg)))continue;
+  if(load){
+   const auto value=memory_.read32le(address);
+   if(reg==15)registers_[15]=value;
+   else registers_[reg]=value;
+  }else{
+   memory_.write32le(address,read_operand_register(reg));
+  }
+  address+=4u;
+ }
+ if(writeback)registers_[rn]=up?base+4u*count:base-4u*count;
 }
 
 void CPU::execute_thumb(std::uint16_t ins){
