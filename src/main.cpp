@@ -1,5 +1,6 @@
 #include "cpu/cpu.hpp"
 #include "firmware/fls_parser.hpp"
+#include "firmware/boot_plan.hpp"
 #include "platform/platform.hpp"
 #include "platform/battery.hpp"
 #include "memory/memory.hpp"
@@ -88,6 +89,60 @@ int main(int argc, char** argv) {
             return 0;
         } catch (const std::exception& error) {
             std::cerr << "Battery simulation failed: " << error.what() << "\\n";
+            return 1;
+        }
+    }
+
+    if (argc == 3 && std::string(argv[1]) == "--run-boot-plan") {
+        try {
+            const auto plan = firmware::parse_boot_plan(argv[2]);
+            Memory memory;
+            memory.map(plan.ram_base, plan.ram_size, true, "boot-plan shared RAM");
+            std::cout << "C3350EMU MULTI-REGION FIRMWARE EXECUTION\\n"
+                      << "RAM: 0x" << std::hex << plan.ram_base
+                      << " - 0x" << (static_cast<std::uint64_t>(plan.ram_base)+plan.ram_size-1u)
+                      << "\\n";
+            for (std::size_t i=0;i<plan.segments.size();++i) {
+                const auto& segment=plan.segments[i];
+                const auto loaded=firmware::FlsParser::load_raw_segment(
+                    segment.file,segment.offset,segment.length,segment.load_address,memory);
+                std::cout << "Loaded region " << std::dec << (i+1) << ": "
+                          << loaded.source.filename().string()
+                          << " offset=0x" << std::hex << loaded.file_offset
+                          << " load=0x" << loaded.load_address
+                          << " bytes=0x" << loaded.bytes_loaded
+                          << " CRC32=0x" << loaded.crc32 << "\\n";
+            }
+            CPU cpu(memory);
+            cpu.reset(plan.entry);
+            std::cout << "Starting CPU at 0x" << std::hex << plan.entry
+                      << (plan.entry&1u?" (Thumb)":" (ARM)")
+                      << "\\nInstruction/step limit: " << std::dec << plan.instruction_limit << "\\n";
+            std::string reason="execution limit reached";
+            std::uint64_t steps=0;
+            while(steps<plan.instruction_limit &&
+                  cpu.instructions_executed()<plan.instruction_limit) {
+                ++steps;
+                try { cpu.step(); }
+                catch(const std::exception& error) { reason=error.what(); break; }
+            }
+            std::cout << "\\nExecution stopped: " << reason
+                      << "\\nSteps: " << steps
+                      << "\\nInstructions completed: " << cpu.instructions_executed()
+                      << "\\nPC: 0x" << std::hex << cpu.getPC() << "\\n";
+            for(unsigned i=0;i<16;++i)
+                std::cout << "R" << std::dec << i << "=0x" << std::hex
+                          << cpu.get_register(i) << ((i%4==3)?"\\n":"  ");
+            std::cout << "CPSR=0x" << std::hex << cpu.get_cpsr() << std::dec << "\\n"
+                      << "Data fault: address=0x" << std::hex << cpu.get_data_fault_address()
+                      << " status=0x" << cpu.get_data_fault_status()
+                      << "\\nPrefetch fault: address=0x" << cpu.get_instruction_fault_address()
+                      << " status=0x" << cpu.get_instruction_fault_status() << std::dec << "\\n"
+                      << "NOTE: this executes explicitly selected FLS byte ranges in shared user-configured RAM.\\n"
+                      << "No automatic FLS decoding or verified C3350 physical memory map is implied.\\n";
+            return 0;
+        } catch(const std::exception& error) {
+            std::cerr << "Boot-plan execution failed: " << error.what() << "\\n";
             return 1;
         }
     }
