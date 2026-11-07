@@ -10,7 +10,15 @@ class Memory;
 
 namespace firmware {
 
-struct LoadResult {\n    std::filesystem::path source;\n    std::uint64_t file_offset = 0;\n    std::uint32_t load_address = 0;\n    std::size_t bytes_loaded = 0;\n    std::uint32_t crc32 = 0;\n};\n\nstruct FlsInfo {
+struct LoadResult {
+    std::filesystem::path source;
+    std::uint64_t file_offset = 0;
+    std::uint32_t load_address = 0;
+    std::size_t bytes_loaded = 0;
+    std::uint32_t crc32 = 0;
+};
+
+struct FlsInfo {
     std::filesystem::path path;
     std::uintmax_t file_size = 0;
     std::vector<std::uint8_t> header;
