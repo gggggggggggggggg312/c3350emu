@@ -23,13 +23,17 @@ int main(){
   {std::ofstream out(plan_path);out<<"# Two loaded regions, one shared address space\n"
    <<"RAM 0x1000 0x100\nENTRY 0x1000\nLIMIT 3\n"
    <<"SEGMENT \"stage_a.fls\" 0 8 0x1000\n"
-   <<"SEGMENT \"stage_b.fls\" 0 4 0x1010\n";}
+   <<"SEGMENT \"stage_b.fls\" 0 4 0x1010\n"
+   <<"ZERO 0x1020 4\nCOPY 0x1010 0x1020 4\nZERO 0x1024 4\n";}
   const auto p=firmware::parse_boot_plan(plan_path);
   require(p.segments.size()==2,"Plan did not parse both firmware regions");
   require(p.breakpoints.size()==1&&p.breakpoints[0]==0x1014u,"Breakpoint directive failed");
   Memory memory;memory.map(p.ram_base,p.ram_size,true,"boot-plan test RAM");
   for(const auto& s:p.segments)
    firmware::FlsParser::load_raw_segment(s.file,s.offset,s.length,s.load_address,memory);
+  firmware::apply_memory_initialization(p,memory);
+  require(memory.read32le(0x1020u)==0xE3A01063u,"COPY did not stage initialized data");
+  require(memory.read32le(0x1024u)==0u,"ZERO did not clear BSS-like memory");
   CPU cpu(memory);cpu.reset(p.entry);
   for(std::uint64_t i=0;i<p.instruction_limit&&cpu.instructions_executed()<p.instruction_limit;++i)cpu.step();
   require(cpu.get_register(0)==42,"First loaded region did not execute");
