@@ -2,6 +2,7 @@
 #include <cassert>
 #include <filesystem>
 #include <fstream>
+#include <iterator>
 #include <stdexcept>
 #include <string>
 int main() {
