@@ -60,3 +60,8 @@ A boot plan may include repeated `BREAK <address>` directives. Execution stops b
 ## Runtime RAM initialization
 
 Boot plans support ordered `COPY source destination length` and `ZERO destination length` operations. They run after all selected raw segments are staged and before CPU reset/entry. COPY snapshots its source first, so overlapping copies behave safely. Both source and destination ranges are checked against configured RAM. These operations model common boot-time initialized-data and BSS setup; they do not infer C3350 addresses automatically.
+
+
+## Initial stack and register state
+
+`STACK address` initializes R13/SP after CPU reset and before the first instruction. The address must be inside configured RAM or exactly its end (for a downward-growing stack). `REG index value` initializes one of R0-R14; duplicate assignments and R15 are rejected. These directives let a staged boot handoff model establish stack and argument registers without pretending the values are known C3350 reset state.
