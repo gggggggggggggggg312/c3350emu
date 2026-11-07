@@ -40,3 +40,8 @@ any decoded address fields, with unknown fields left unknown.
 The ARM interpreter now routes supported instruction-fetch failures to the Prefetch Abort vector (0x0C) and supported data/MMU failures to the Data Abort vector (0x10). It saves CPSR in SPSR_abt, updates LR_abt, masks IRQ/async abort, and records simplified DFSR/IFSR and DFAR/IFAR values. Fault-status encodings are a limited model; nested aborts and full ARM1176 fault semantics are not implemented.
 
 Use `c3350emu --prepare-boot <firmware-directory> [report.txt]` to inventory PSI, SLB, BSY, and CDS files in the observed downloader order. It checks component presence and records file sizes, classifications, and headers. This is a boot-preparation manifest, not an FLS decoder or firmware execution. Unknown addresses and entry points remain unknown.
+
+
+## Executable multi-region boot image
+
+`--run-boot-plan <boot.plan>` is the first multi-region execution path. A plan defines one shared RAM window, a CPU entry point, an instruction/step limit, and one or more explicit FLS byte ranges. All ranges are loaded before CPU reset and execution, allowing normal branch instructions to transfer control between regions without restarting the CPU. Relative file paths resolve against the plan file's directory. Invalid file ranges, RAM overflows, overlapping destinations, and entries outside loaded data are rejected. This is execution of user-selected raw FLS ranges, not automatic FLS decoding; all offsets and addresses remain user-supplied and unverified for the C3350.
