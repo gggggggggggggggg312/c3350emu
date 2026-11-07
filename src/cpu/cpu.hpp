@@ -24,6 +24,18 @@ private:
     void execute_block_transfer(std::uint32_t instruction);
     void execute_thumb(std::uint16_t instruction);
     void execute_cp15_transfer(std::uint32_t instruction);
+    void switch_mode(std::uint32_t new_mode);
+    void execute_status_transfer(std::uint32_t instruction);
+    void enter_svc_exception(std::uint32_t return_address);
+    std::uint32_t* active_spsr();
+    std::array<std::uint32_t, 7> user_bank_{};
+    std::array<std::uint32_t, 7> fiq_bank_{};
+    std::array<std::uint32_t, 2> irq_bank_{};
+    std::array<std::uint32_t, 2> svc_bank_{};
+    std::array<std::uint32_t, 2> abort_bank_{};
+    std::array<std::uint32_t, 2> undefined_bank_{};
+    std::uint32_t spsr_fiq_ = 0, spsr_irq_ = 0, spsr_svc_ = 0;
+    std::uint32_t spsr_abort_ = 0, spsr_undefined_ = 0;
     std::uint32_t cp15_control_ = 0;
     std::uint32_t cp15_ttbr0_ = 0;
     std::uint32_t cp15_dacr_ = 0;
