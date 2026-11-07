@@ -1,0 +1,32 @@
+# Firmware and device dumps
+firmware/*
+!firmware/.gitkeep
+*.fls
+*.dffs
+*.bin
+*.dump
+*.rom
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# CMake / C++
+build/
+cmake-build-*/
+CMakeFiles/
+CMakeCache.txt
+*.o
+*.obj
+*.dll
+*.so
+*.dylib
+*.exe
+
+# Editor / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
