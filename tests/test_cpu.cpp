@@ -233,5 +233,22 @@ int main(){
   permission_fault=std::string(e.what()).find("permission fault")!=std::string::npos;
  }
  assert(permission_fault);
+ // Large-page translation: a 64 KB mapping through a coarse L2 table.
+ Memory large_memory;
+ large_memory.map(0x00000000u,0x5000u,true,"Translation tables and setup RAM");
+ large_memory.map(0x00300000u,0x10000u,true,"Mapped 64 KB large page");
+ large_memory.write32le(0x00000004u,0x00004001u);
+ large_memory.write32le(0x00004000u,0x00300011u); // Large page, AP=01
+ large_memory.write32le(0x00000100u,0xEE020F10u);
+ large_memory.write32le(0x00000104u,0xEE032F10u);
+ large_memory.write32le(0x00000108u,0xEE013F10u);
+ large_memory.write32le(0x00300000u,0xE3A0002Au);
+ CPU large_cpu(large_memory);
+ large_cpu.reset(0x00000100u);
+ large_cpu.set_register(0,0u);large_cpu.set_register(2,1u);large_cpu.set_register(3,1u);
+ large_cpu.step();large_cpu.step();large_cpu.step();
+ large_cpu.set_register(15,0x00100000u);
+ large_cpu.step();
+ assert(large_cpu.get_register(0)==42u);
  return 0;
 }
