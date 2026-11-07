@@ -16,7 +16,9 @@ const std::vector<ResearchFact>& gt_c3350_research_profile() {
         {"Boot mode", "BB", "Reported in a GT-C3350 flashing log"},
         {"Flash ID", "003000EC", "Reported in a GT-C3350 flashing log"},
         {"Download baud rate", "921600", "Reported in a GT-C3350 flashing log"},
-        {"Physical RAM map", "Unknown", "Not established"},
+        {"Memory hardware", "SRAM plus NAND/LPDDR1 subsystem", "Intel XMM 2130/2150 platform brief"},
+        {"Physical RAM map", "Unknown", "No C3350-specific base address or capacity established"},
+        {"RAM initialization", "Unknown", "DDR/LPDDR controller setup sequence not recovered"},
         {"CPU core revision and clock", "Unknown", "Not established"},
         {"OneNAND register map", "Unknown", "Exact fitted device documentation required"},
         {"Firmware load addresses", "Unknown", "Must be extracted from verified FLS records"}
