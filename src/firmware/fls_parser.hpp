@@ -18,12 +18,16 @@ struct FlsInfo {
 
 class FlsParser {
 public:
-    // Reads the file safely and captures its header. The Samsung FLS record
-    // layout is not yet documented here, so this deliberately does not invent
-    // segment addresses or claim to extract executable payloads.
     static FlsInfo inspect(const std::filesystem::path& path,
                            std::size_t header_size = 64,
                            std::uintmax_t max_file_size = 256ULL * 1024ULL * 1024ULL);
+
+    // Produces a dependency-free forensic report. Findings are candidates,
+    // not a decoded Samsung FLS specification.
+    static std::filesystem::path analyze(
+        const std::filesystem::path& path,
+        const std::filesystem::path& report_path = {},
+        std::uintmax_t max_file_size = 256ULL * 1024ULL * 1024ULL);
 };
 
 std::string hex_bytes(const std::vector<std::uint8_t>& bytes);
