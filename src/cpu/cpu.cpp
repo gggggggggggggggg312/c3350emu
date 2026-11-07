@@ -109,7 +109,7 @@ void CPU::execute_halfword_transfer(std::uint32_t ins){
  const unsigned rn=(ins>>16)&15u,rd=(ins>>12)&15u,type=(ins>>5)&3u;
  if(type==0u)throw std::runtime_error("Invalid ARM halfword-transfer type");
  if(!load&&type!=1u)throw std::runtime_error("Signed ARM transfer is load-only");
- const std::uint32_t offset=immediate?(((ins>>8)&15u)<<4)|(ins&15u):(ins&15u);
+ const std::uint32_t offset=immediate?((((ins>>8)&15u)<<4)|(ins&15u)):read_operand_register(ins&15u);
  const auto base=read_operand_register(rn),adjusted=up?base+offset:base-offset,address=pre?adjusted:base;
  const auto read16=[this](std::uint32_t a){return static_cast<std::uint16_t>(memory_.read8(a)|(static_cast<std::uint16_t>(memory_.read8(a+1u))<<8));};
  if(load){
