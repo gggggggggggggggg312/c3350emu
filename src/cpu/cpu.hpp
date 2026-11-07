@@ -27,6 +27,17 @@ private:
     void switch_mode(std::uint32_t new_mode);
     void execute_status_transfer(std::uint32_t instruction);
     void enter_svc_exception(std::uint32_t return_address);
+    struct TlbEntry {
+        bool valid = false;
+        std::uint32_t virtual_page = 0;
+        std::uint32_t physical_page = 0;
+        std::uint32_t ttbr = 0;
+        std::uint32_t context_id = 0;
+        unsigned domain = 0;
+        unsigned ap = 0;
+    };
+    void invalidate_tlb_all();
+    void invalidate_tlb_mva(std::uint32_t address);
     std::uint32_t translate_address(std::uint32_t virtual_address, bool write) const;
     std::uint8_t read_virtual8(std::uint32_t address) const;
     std::uint32_t read_virtual32(std::uint32_t address) const;
@@ -44,7 +55,7 @@ private:
     std::uint32_t cp15_control_ = 0;
     std::uint32_t cp15_ttbr0_ = 0;
     std::uint32_t cp15_dacr_ = 0;
-    std::uint32_t cp15_context_id_ = 0;
+    std::uint32_t cp15_context_id_ = 0;\n    mutable std::array<TlbEntry, 64> tlb_{};
     Memory& memory_;
     std::array<std::uint32_t, 16> registers_{};
     std::uint32_t cpsr_ = 0;
