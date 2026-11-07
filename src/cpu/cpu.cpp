@@ -9,21 +9,38 @@ void CPU::reset(std::uint32_t entry){registers_.fill(0);user_bank_.fill(0);fiq_b
 std::uint32_t CPU::translate_address(std::uint32_t va,bool write)const{
  if((cp15_control_&1u)==0u)return va;
  const std::uint32_t l1_base=cp15_ttbr0_&0xffffc000u;
- const std::uint32_t descriptor=memory_.read32le(l1_base+((va>>20)&0xfffu)*4u);
- if((descriptor&3u)!=2u)throw std::runtime_error("MMU translation fault: only first-level section descriptors are supported");
- const unsigned domain=(descriptor>>5)&15u;
+ const std::uint32_t l1=memory_.read32le(l1_base+((va>>20)&0xfffu)*4u);
+ const unsigned l1_type=l1&3u;
+ std::uint32_t physical=0;
+ unsigned domain=(l1>>5)&15u;
+ unsigned ap=0;
+ const bool privileged=(cpsr_&0x1fu)!=0x10u;
+ if(l1_type==2u){
+  ap=(l1>>10)&3u;
+  physical=(l1&0xfff00000u)|(va&0x000fffffu);
+ }else if(l1_type==1u){
+  // Coarse page table: 256 second-level descriptors, each covering 4 KB.
+  const std::uint32_t l2_base=l1&0xfffffc00u;
+  const std::uint32_t l2=memory_.read32le(l2_base+(((va>>12)&0xffu)*4u));
+  const unsigned l2_type=l2&3u;
+  if(l2_type!=2u&&l2_type!=3u)
+   throw std::runtime_error("MMU translation fault: unsupported or invalid second-level descriptor");
+  const unsigned subpage=(va>>10)&3u;
+  ap=(l2>>(4u+subpage*2u))&3u;
+  physical=(l2&0xfffff000u)|(va&0xfffu);
+ }else{
+  throw std::runtime_error("MMU translation fault: invalid first-level descriptor");
+ }
  const unsigned domain_access=(cp15_dacr_>>(domain*2u))&3u;
  if(domain_access==0u||domain_access==2u)throw std::runtime_error("MMU domain fault");
- const bool privileged=(cpsr_&0x1fu)!=0x10u;
  if(domain_access!=3u){
-  const unsigned ap=(descriptor>>10)&3u;
   bool allowed=false;
   if(ap==1u)allowed=privileged;
   else if(ap==2u)allowed=privileged||!write;
   else if(ap==3u)allowed=true;
-  if(!allowed)throw std::runtime_error("MMU section permission fault");
+  if(!allowed)throw std::runtime_error("MMU page/section permission fault");
  }
- return (descriptor&0xfff00000u)|(va&0x000fffffu);
+ return physical;
 }
 std::uint8_t CPU::read_virtual8(std::uint32_t a)const{return memory_.read8(translate_address(a,false));}
 std::uint32_t CPU::read_virtual32(std::uint32_t a)const{return memory_.read32le(translate_address(a,false));}
