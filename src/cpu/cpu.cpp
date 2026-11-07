@@ -5,13 +5,14 @@ constexpr std::uint32_t N=1u<<31, Z=1u<<30, C=1u<<29, V=1u<<28, NZCV=N|Z|C|V;
 std::uint32_t ror(std::uint32_t x,unsigned n){n&=31u;return n?((x>>n)|(x<<(32u-n))):x;}
 }
 CPU::CPU(Memory& m):memory_(m){}
-void CPU::reset(std::uint32_t entry){registers_.fill(0);user_bank_.fill(0);fiq_bank_.fill(0);irq_bank_.fill(0);svc_bank_.fill(0);abort_bank_.fill(0);undefined_bank_.fill(0);spsr_fiq_=spsr_irq_=spsr_svc_=spsr_abort_=spsr_undefined_=0;cp15_control_=cp15_ttbr0_=cp15_dacr_=cp15_context_id_=0;invalidate_tlb_all();invalidate_instruction_cache(0u,true);invalidate_data_cache(0u,true);cpsr_=0xD3;if(entry&1u){cpsr_|=(1u<<5);registers_[15]=entry&~1u;}else registers_[15]=entry;instructions_executed_=0;exclusive_valid_=false;exclusive_address_=0;}
+void CPU::reset(std::uint32_t entry){registers_.fill(0);user_bank_.fill(0);fiq_bank_.fill(0);irq_bank_.fill(0);svc_bank_.fill(0);abort_bank_.fill(0);undefined_bank_.fill(0);spsr_fiq_=spsr_irq_=spsr_svc_=spsr_abort_=spsr_undefined_=0;cp15_control_=cp15_ttbr0_=cp15_dacr_=cp15_context_id_=0;data_fault_status_=instruction_fault_status_=data_fault_address_=instruction_fault_address_=fault_address_=fault_status_=0;invalidate_tlb_all();invalidate_instruction_cache(0u,true);invalidate_data_cache(0u,true);cpsr_=0xD3;if(entry&1u){cpsr_|=(1u<<5);registers_[15]=entry&~1u;}else registers_[15]=entry;instructions_executed_=0;exclusive_valid_=false;exclusive_address_=0;}
 void CPU::invalidate_tlb_all(){for(auto& entry:tlb_)entry.valid=false;}
 void CPU::invalidate_tlb_mva(std::uint32_t address){
  const auto page=address>>12;
  for(auto& entry:tlb_)if(entry.valid&&entry.virtual_page==page)entry.valid=false;
 }
 std::uint32_t CPU::translate_address(std::uint32_t va,bool write)const{
+ fault_address_=va;fault_status_=0x8u;
  if((cp15_control_&1u)==0u)return va;
  const std::uint32_t page=va>>12;
  const std::uint32_t ttbr=cp15_ttbr0_&0xffffc000u;
@@ -19,14 +20,14 @@ std::uint32_t CPU::translate_address(std::uint32_t va,bool write)const{
  auto& cached=tlb_[slot];
  if(cached.valid&&cached.virtual_page==page&&cached.ttbr==ttbr&&cached.context_id==cp15_context_id_){
   const unsigned da=(cp15_dacr_>>(cached.domain*2u))&3u;
-  if(da==0u||da==2u)throw std::runtime_error("MMU domain fault");
+  if(da==0u||da==2u){fault_status_=cached.ap==0u?0x9u:0xBu;throw std::runtime_error("MMU domain fault");}
   const bool privileged=(cpsr_&0x1fu)!=0x10u;
   if(da!=3u){
    bool allowed=false;
    if(cached.ap==1u)allowed=privileged;
    else if(cached.ap==2u)allowed=privileged||!write;
    else if(cached.ap==3u)allowed=true;
-   if(!allowed)throw std::runtime_error("MMU page/section permission fault");
+   if(!allowed){fault_status_=cached.ap==0u?0xDu:0xFu;throw std::runtime_error("MMU page/section permission fault");}
   }
   return cached.physical_page|(va&0xfffu);
  }
@@ -47,19 +48,19 @@ std::uint32_t CPU::translate_address(std::uint32_t va,bool write)const{
   }else if(type==2u||type==3u){
    ap=(l2>>(4u+(((va>>10)&3u)*2u)))&3u;
    physical=(l2&0xfffff000u)|(va&0xfffu);
-  }else throw std::runtime_error("MMU translation fault: invalid second-level descriptor");
- }else throw std::runtime_error("MMU translation fault: invalid first-level descriptor");
+  }else {fault_status_=0x7u;throw std::runtime_error("MMU translation fault: invalid second-level descriptor");}
+ }else {fault_status_=0x5u;throw std::runtime_error("MMU translation fault: invalid first-level descriptor");}
  cached.valid=true;cached.virtual_page=page;cached.physical_page=physical&0xfffff000u;
  cached.ttbr=ttbr;cached.context_id=cp15_context_id_;cached.domain=domain;cached.ap=ap;
  const unsigned da=(cp15_dacr_>>(domain*2u))&3u;
- if(da==0u||da==2u)throw std::runtime_error("MMU domain fault");
+ if(da==0u||da==2u){fault_status_=l1_type==2u?0x9u:0xBu;throw std::runtime_error("MMU domain fault");}
  const bool privileged=(cpsr_&0x1fu)!=0x10u;
  if(da!=3u){
   bool allowed=false;
   if(ap==1u)allowed=privileged;
   else if(ap==2u)allowed=privileged||!write;
   else if(ap==3u)allowed=true;
-  if(!allowed)throw std::runtime_error("MMU page/section permission fault");
+  if(!allowed){fault_status_=l1_type==2u?0xDu:0xFu;throw std::runtime_error("MMU page/section permission fault");}
  }
  return physical;
 }
@@ -98,6 +99,10 @@ std::uint32_t CPU::get_register(unsigned i)const{if(i>=16)throw std::out_of_rang
 void CPU::set_register(unsigned i,std::uint32_t v){if(i>=16)throw std::out_of_range("ARM register index");registers_[i]=v;}
 std::uint32_t CPU::get_cpsr()const{return cpsr_;}
 std::uint64_t CPU::instructions_executed()const noexcept{return instructions_executed_;}
+std::uint32_t CPU::get_data_fault_status()const noexcept{return data_fault_status_;}
+std::uint32_t CPU::get_instruction_fault_status()const noexcept{return instruction_fault_status_;}
+std::uint32_t CPU::get_data_fault_address()const noexcept{return data_fault_address_;}
+std::uint32_t CPU::get_instruction_fault_address()const noexcept{return instruction_fault_address_;}
 
 std::uint32_t* CPU::active_spsr(){
  switch(cpsr_&0x1fu){
@@ -144,6 +149,15 @@ void CPU::enter_svc_exception(std::uint32_t return_address){
  cpsr_=(cpsr_|(1u<<7))&~(1u<<5);
  registers_[15]=0x08u;
 }
+void CPU::enter_abort_exception(bool prefetch,std::uint32_t fault_pc){
+ const auto saved=cpsr_;
+ if(prefetch){instruction_fault_address_=fault_address_;instruction_fault_status_=fault_status_;}
+ else{data_fault_address_=fault_address_;data_fault_status_=fault_status_;}
+ switch_mode(0x17u);spsr_abort_=saved;
+ registers_[14]=fault_pc+(prefetch?4u:8u);
+ cpsr_=(cpsr_|(1u<<8)|(1u<<7))&~(1u<<5);
+ registers_[15]=prefetch?0x0Cu:0x10u;fetching_instruction_=false;
+}
 void CPU::execute_status_transfer(std::uint32_t ins){
  const bool is_mrs=(ins&(1u<<21))==0;
  const bool use_spsr=(ins&(1u<<22))!=0;
@@ -181,14 +195,20 @@ bool CPU::condition_passed(unsigned q)const{
  switch(q){case 0:return z;case 1:return !z;case 2:return c;case 3:return !c;case 4:return n;case 5:return !n;case 6:return v;case 7:return !v;case 8:return c&&!z;case 9:return !c||z;case 10:return n==v;case 11:return n!=v;case 12:return !z&&(n==v);case 13:return z||(n!=v);case 14:return true;default:return false;}
 }
 void CPU::step(){
+ const auto fault_pc=registers_[15];fetching_instruction_=true;
+ try{step_unchecked();}
+ catch(const std::out_of_range&){enter_abort_exception(fetching_instruction_,fault_pc);}
+ catch(const std::runtime_error& e){const std::string message=e.what();if(message.find("MMU ")==0||message.find("Attempted write to read-only memory")!=std::string::npos)enter_abort_exception(fetching_instruction_,fault_pc);else throw;}
+}
+void CPU::step_unchecked(){
  const auto address=registers_[15];
  if(cpsr_&(1u<<5)){
   const auto ins=static_cast<std::uint16_t>(cached_read8(translate_address(address,false),true) |
       (static_cast<std::uint16_t>(cached_read8(translate_address(address+1u,false),true))<<8));
-  registers_[15]=address+2u;++instructions_executed_;
+  registers_[15]=address+2u;++instructions_executed_;fetching_instruction_=false;
   execute_thumb(ins);return;
  }
- const auto physical=translate_address(address,false);const auto ins=static_cast<std::uint32_t>(cached_read8(physical,true))|(static_cast<std::uint32_t>(cached_read8(translate_address(address+1u,false),true))<<8)|(static_cast<std::uint32_t>(cached_read8(translate_address(address+2u,false),true))<<16)|(static_cast<std::uint32_t>(cached_read8(translate_address(address+3u,false),true))<<24);registers_[15]=address+4u;++instructions_executed_;
+ const auto physical=translate_address(address,false);const auto ins=static_cast<std::uint32_t>(cached_read8(physical,true))|(static_cast<std::uint32_t>(cached_read8(translate_address(address+1u,false),true))<<8)|(static_cast<std::uint32_t>(cached_read8(translate_address(address+2u,false),true))<<16)|(static_cast<std::uint32_t>(cached_read8(translate_address(address+3u,false),true))<<24);registers_[15]=address+4u;++instructions_executed_;fetching_instruction_=false;
  if(!condition_passed(ins>>28))return;
  if((ins&0x0FBF0FFFu)==0x010F0000u || (ins&0x0FB0FFF0u)==0x0120F000u || (ins&0x0FB0F000u)==0x0320F000u)
   execute_status_transfer(ins);
@@ -255,6 +275,16 @@ void CPU::execute_cp15_transfer(std::uint32_t ins){
   else if(opc2==1u)invalidate_tlb_mva(operand);
   else throw std::runtime_error("Unsupported unified TLB invalidation operation");
   return;
+ }
+ if(crn==5u&&crm==0u&&(opc2==0u||opc2==1u)){
+  if(!read)throw std::runtime_error("CP15 fault status registers are read-only");
+  const auto value=opc2==0u?data_fault_status_:instruction_fault_status_;
+  if(rd==15u)cpsr_=(cpsr_&~NZCV)|(value&NZCV);else registers_[rd]=value;return;
+ }
+ if(crn==6u&&crm==0u&&(opc2==0u||opc2==2u)){
+  if(!read)throw std::runtime_error("CP15 fault address registers are read-only");
+  const auto value=opc2==0u?data_fault_address_:instruction_fault_address_;
+  if(rd==15u)cpsr_=(cpsr_&~NZCV)|(value&NZCV);else registers_[rd]=value;return;
  }
  std::uint32_t* value=nullptr;
  if(crn==1u&&crm==0u&&opc2==0u)value=&cp15_control_;
