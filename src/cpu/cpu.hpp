@@ -27,6 +27,11 @@ private:
     void switch_mode(std::uint32_t new_mode);
     void execute_status_transfer(std::uint32_t instruction);
     void enter_svc_exception(std::uint32_t return_address);
+    std::uint32_t translate_address(std::uint32_t virtual_address, bool write) const;
+    std::uint8_t read_virtual8(std::uint32_t address) const;
+    std::uint32_t read_virtual32(std::uint32_t address) const;
+    void write_virtual8(std::uint32_t address, std::uint8_t value);
+    void write_virtual32(std::uint32_t address, std::uint32_t value);
     std::uint32_t* active_spsr();
     std::array<std::uint32_t, 7> user_bank_{};
     std::array<std::uint32_t, 7> fiq_bank_{};
