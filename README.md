@@ -9,7 +9,7 @@ This project is in the firmware-analysis and infrastructure stage. It does **not
 Current functionality:
 - Native Windows GUI target (`c3350emu-gui`) for selecting firmware/binary files, viewing header bytes, and running a user-configured raw ARM image.
 - Separate simplified ARM instruction and data cache models with CP15 cache invalidation operations.
-- C++ command-line application.
+- C++ command-line application.\n- Simulated battery subsystem with percentage, voltage estimate, charging/discharging, and elapsed-time progression (`--battery-demo`).
 - Provisional GT-C3350 hardware research profile, available with --platform-info.
 - Conservative FLS file inspection: file size and raw header bytes.
 - Python firmware inspector: SHA-256, header dump, and printable-string sampling.
@@ -156,3 +156,15 @@ Firmware binaries are intentionally excluded from Git. Only redistribute firmwar
 ## License
 
 C3350EMU is licensed under the [MIT License](LICENSE). You may use, modify, and redistribute the project under the terms of that license. The license applies to this repository's original code and documentation; third-party components and firmware remain subject to their own licenses and redistribution restrictions.
+
+
+## Battery simulation
+
+The emulator includes a deterministic battery model for power-management experiments:
+
+```powershell
+.\\build\\Release\\c3350emu.exe --battery-demo 35 charge 3600
+.\\build\\Release\\c3350emu.exe --battery-demo 80 discharge 1800
+```
+
+The current default model uses a provisional 1000 mAh capacity, 300 mA charging rate, and 180 mA discharge rate. Voltage is an approximate state-of-charge estimate from 3.30 V to 4.20 V. These are simulation parameters, **not verified GT-C3350 battery specifications or real battery telemetry**.
