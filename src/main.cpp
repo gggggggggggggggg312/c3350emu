@@ -7,6 +7,9 @@
 
 #include <exception>
 #include <fstream>
+#include <filesystem>
+#include <algorithm>
+#include <cctype>
 #include <iostream>
 #include <limits>
 #include <string>
@@ -86,6 +89,69 @@ int main(int argc, char** argv) {
         } catch (const std::exception& error) {
             std::cerr << "Battery simulation failed: " << error.what() << "\\n";
             return 1;
+        }
+    }
+
+    if ((argc == 3 || argc == 4) && std::string(argv[1]) == "--prepare-boot") {
+        try {
+            const std::filesystem::path directory(argv[2]);
+            if (!std::filesystem::is_directory(directory))
+                throw std::runtime_error("Firmware directory does not exist.");
+            std::vector<std::filesystem::path> files;
+            for (const auto& item : std::filesystem::directory_iterator(directory))
+                if (item.is_regular_file() && item.path().extension()==".fls")
+                    files.push_back(item.path());
+            std::sort(files.begin(),files.end());
+            const auto find_component=[&](const std::string& key){
+                std::vector<std::filesystem::path> found;
+                for(const auto& path:files){
+                    std::string name=path.filename().string();
+                    std::transform(name.begin(),name.end(),name.begin(),
+                        [](unsigned char ch){return static_cast<char>(std::toupper(ch));});
+                    if(name.find(key)!=std::string::npos)found.push_back(path);
+                }
+                return found;
+            };
+            const std::vector<std::pair<std::string,std::string>> order={
+                {"PSI","Downloader sequence step 1"},
+                {"SLB","Downloader sequence step 2"},
+                {"BSY","Downloader sequence steps 3 and 4 (two reported regions)"},
+                {"CDS","Downloader sequence step 5"}
+            };
+            std::ostringstream report;
+            report<<"C3350EMU firmware boot-preparation report\\n"
+                  <<"========================================\\n"
+                  <<"Directory: "<<directory.string()<<"\\n\\n";
+            bool complete=true;
+            for(const auto& item:order){
+                const auto matches=find_component(item.first);
+                report<<item.first<<" - "<<item.second<<"\\n";
+                if(matches.empty()){report<<"  MISSING: no matching .fls filename\\n";complete=false;}
+                for(const auto& path:matches){
+                    const auto info=firmware::FlsParser::inspect(path);
+                    report<<"  File: "<<path.filename().string()<<"\\n"
+                          <<"  Size: "<<info.file_size<<" bytes\\n"
+                          <<"  Classification: "<<info.classification<<"\\n"
+                          <<"  Header: "<<firmware::hex_bytes(info.header)<<"\\n"
+                          <<"  Note: "<<info.note<<"\\n";
+                }
+                report<<"\\n";
+            }
+            report<<"Firmware-set inventory: "<<(complete?"all four component families present":"INCOMPLETE")<<"\\n"
+                  <<"Known downloader order: PSI -> SLB -> BSY region 0 -> BSY region 1 -> CDS\\n"
+                  <<"BOOT STATUS: PREPARATION ONLY. No component was decoded, relocated, or executed.\\n"
+                  <<"FLS offsets, runtime load addresses, checksums, and entry points remain unverified.\\n";
+            if(argc==4){
+                std::ofstream out(argv[3],std::ios::binary);
+                if(!out)throw std::runtime_error("Cannot create boot-preparation report.");
+                out<<report.str();
+                if(!out)throw std::runtime_error("Failed writing boot-preparation report.");
+                std::cout<<"Report saved: "<<argv[3]<<"\\n";
+            }
+            std::cout<<report.str();
+            return complete?0:2;
+        } catch(const std::exception& e) {
+            std::cerr<<"Boot preparation failed: "<<e.what()<<"\\n";return 1;
         }
     }
 
