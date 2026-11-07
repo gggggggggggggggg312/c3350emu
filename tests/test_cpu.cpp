@@ -24,6 +24,16 @@ int main(){
  cpu.set_register(1,0xffffffffu);cpu.set_register(2,2);cpu.set_register(15,0x1028);cpu.step();
  assert(cpu.get_register(8)==0xfffffffeu);
  assert((cpu.get_cpsr()&(1u<<31))!=0);
+ // STMIA r4!, {r0-r2}; then LDMIA r5!, {r8-r10}.
+ m.write32le(0x1030,0xE8A40007u);
+ m.write32le(0x1034,0xE8B50F00u);
+ cpu.set_register(0,0x11);cpu.set_register(1,0x22);cpu.set_register(2,0x33);
+ cpu.set_register(4,0x1200);cpu.set_register(5,0x1200);cpu.set_register(15,0x1030);
+ cpu.step();assert(m.read32le(0x1200)==0x11&&m.read32le(0x1204)==0x22&&m.read32le(0x1208)==0x33);
+ assert(cpu.get_register(4)==0x120c);
+ cpu.set_register(15,0x1034);cpu.step();
+ assert(cpu.get_register(8)==0x11&&cpu.get_register(9)==0x22&&cpu.get_register(10)==0x33);
+ assert(cpu.get_register(5)==0x120c);
  cpu.set_register(15,0x90000000u);bool threw=false;try{cpu.step();}catch(const std::out_of_range&){threw=true;}assert(threw);
  return 0;
 }
