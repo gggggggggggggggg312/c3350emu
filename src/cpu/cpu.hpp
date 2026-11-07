@@ -17,6 +17,7 @@ private:
     std::uint32_t read_operand_register(unsigned index) const;
     void execute_data_processing(std::uint32_t instruction);
     void execute_single_transfer(std::uint32_t instruction);
+    void execute_halfword_transfer(std::uint32_t instruction);
     void execute_branch(std::uint32_t instruction);
     void execute_multiply(std::uint32_t instruction);
     void execute_block_transfer(std::uint32_t instruction);
