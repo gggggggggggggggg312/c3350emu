@@ -60,10 +60,8 @@ int main(int argc, char** argv) {
         return 2;
     }
 
-    CPU cpu;
-    cpu.reset();
-    std::cout << "C3350EMU research scaffold\n"
-              << "CPU execution: not implemented\n"
+    std::cout << "C3350EMU research emulator\n"
+              << "ARM-state interpreter: initial instruction subset implemented\n"
               << "Firmware boot: not implemented\n"
               << "Use --platform-info for current hardware research.\n"
               << "Use --inspect-firmware <file.fls> to inspect a firmware file.\n";
