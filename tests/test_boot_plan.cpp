@@ -21,7 +21,7 @@ int main(){
   {std::ofstream out(a,std::ios::binary);write_word(out,0xE3A0002Au);write_word(out,0xEA000002u);}
   {std::ofstream out(b,std::ios::binary);write_word(out,0xE3A01063u);}
   {std::ofstream out(plan_path);out<<"# Two loaded regions, one shared address space\n"
-   <<"RAM 0x1000 0x100\nENTRY 0x1000\nLIMIT 3\n"
+   <<"RAM 0x1000 0x100\nENTRY 0x1000\nLIMIT 3\nBREAK 0x1014\n"
    <<"SEGMENT \"stage_a.fls\" 0 8 0x1000\n"
    <<"SEGMENT \"stage_b.fls\" 0 4 0x1010\n"
    <<"ZERO 0x1020 4\nCOPY 0x1010 0x1020 4\nZERO 0x1024 4\n";}
