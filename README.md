@@ -191,10 +191,11 @@ Create a UTF-8 text plan (for example `boot.plan`) next to the firmware files:
 RAM 0x01000000 0x00200000
 ENTRY 0x01000000
 LIMIT 100000
+TRACE "boot-trace.csv"
 SEGMENT "C3350XXKK1_BIN_psi.fls" 0x1000 0x20000 0x01000000
 SEGMENT "C3350XXKK1_BIN_slb.fls" 0x2000 0x30000 0x01020000
 SEGMENT "bsy.fls" 0x3000 0x40000 0x01050000
 SEGMENT "C3350XXKK1_BIN_CDS.fls" 0x4000 0x50000 0x01090000
 ```
 
-Run `c3350emu.exe --run-boot-plan boot.plan`. Each SEGMENT line is `file offset length load-address`; paths are relative to the plan file. The loader verifies ranges, rejects overlapping RAM destinations, stages all selected bytes into one shared memory map, and starts one CPU at ENTRY. The CPU can branch between the staged regions. Replace every example offset, length, address, and entry with verified values before using real firmware. The example numbers are deliberately placeholders and are not claimed to match the Samsung FLS format.
+Run `c3350emu.exe --run-boot-plan boot.plan`. Each SEGMENT line is `file offset length load-address`; paths are relative to the plan file. The loader verifies ranges, rejects overlapping RAM destinations, stages all selected bytes into one shared memory map, and starts one CPU at ENTRY. Optional `TRACE "boot-trace.csv"` records executed PCs, ARM/Thumb state, opcodes, source firmware filename and source offset, next PC, and CPSR. The CPU can branch between the staged regions. Replace every example offset, length, address, and entry with verified values before using real firmware. The example numbers are deliberately placeholders and are not claimed to match the Samsung FLS format.
