@@ -1,4 +1,5 @@
 #include "boot_plan.hpp"
+#include "memory/memory.hpp"
 #include <fstream>
 #include <iomanip>
 #include <limits>
@@ -46,6 +47,18 @@ BootPlan parse_boot_plan(const std::filesystem::path& path) {
             } else if(command=="LIMIT") {
                 std::string value,extra;if(!(row>>value)||row>>extra)throw std::runtime_error("LIMIT requires one instruction count");
                 plan.instruction_limit=number(value,"instruction limit");if(!plan.instruction_limit)throw std::runtime_error("Instruction limit must be nonzero");have_limit=true;
+            } else if(command=="COPY") {
+                std::string source,destination,length,extra;
+                if(!(row>>source>>destination>>length)||row>>extra)throw std::runtime_error("COPY requires: source-address destination-address length");
+                const auto src=number(source,"copy source"),dst=number(destination,"copy destination"),n=number(length,"copy length");
+                if(src>0xffffffffu||dst>0xffffffffu||n==0||n>std::numeric_limits<std::size_t>::max())throw std::runtime_error("COPY range is invalid");
+                plan.memory_initialization.push_back({MemoryInitKind::Copy,static_cast<std::uint32_t>(src),static_cast<std::uint32_t>(dst),static_cast<std::size_t>(n)});
+            } else if(command=="ZERO") {
+                std::string destination,length,extra;
+                if(!(row>>destination>>length)||row>>extra)throw std::runtime_error("ZERO requires: destination-address length");
+                const auto dst=number(destination,"zero destination"),n=number(length,"zero length");
+                if(dst>0xffffffffu||n==0||n>std::numeric_limits<std::size_t>::max())throw std::runtime_error("ZERO range is invalid");
+                plan.memory_initialization.push_back({MemoryInitKind::Zero,0,static_cast<std::uint32_t>(dst),static_cast<std::size_t>(n)});
             } else if(command=="BREAK") {
                 std::string value,extra;
                 if(!(row>>value)||row>>extra)throw std::runtime_error("BREAK requires one address");
@@ -95,6 +108,30 @@ BootPlan parse_boot_plan(const std::filesystem::path& path) {
             entry_covered=true;
     }
     if(!entry_covered)throw std::runtime_error("Entry point is not inside any loaded segment");
+    for(const auto& op:plan.memory_initialization) {
+        const auto destination_end=static_cast<std::uint64_t>(op.destination)+op.length;
+        if(op.destination<plan.ram_base||destination_end>ram_end)
+            throw std::runtime_error("Memory initialization destination is outside configured RAM");
+        if(op.kind==MemoryInitKind::Copy) {
+            const auto source_end=static_cast<std::uint64_t>(op.source)+op.length;
+            if(op.source<plan.ram_base||source_end>ram_end)
+                throw std::runtime_error("Memory initialization source is outside configured RAM");
+        }
+    }
     return plan;
+}
+
+void apply_memory_initialization(const BootPlan& plan, Memory& memory) {
+    for(const auto& op:plan.memory_initialization) {
+        if(op.kind==MemoryInitKind::Zero) {
+            for(std::size_t i=0;i<op.length;++i)
+                memory.write8(static_cast<std::uint32_t>(static_cast<std::uint64_t>(op.destination)+i),0);
+        } else {
+            std::vector<std::uint8_t> snapshot(op.length);
+            for(std::size_t i=0;i<op.length;++i)
+                snapshot[i]=memory.read8(static_cast<std::uint32_t>(static_cast<std::uint64_t>(op.source)+i));
+            memory.write_block(op.destination,snapshot);
+        }
+    }
 }
 }
