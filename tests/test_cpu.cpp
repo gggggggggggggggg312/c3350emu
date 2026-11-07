@@ -81,6 +81,18 @@ int main(){
  m.write32le(0x106c,0xE78011A2u); // STR r1,[r0,r2,LSR #1]
  cpu.set_register(0,0x1500);cpu.set_register(1,0xabcdef01u);cpu.set_register(2,8);cpu.set_register(15,0x106c);
  cpu.step();assert(m.read32le(0x1504)==0xabcdef01u);
+ // ARM CLZ counts leading zero bits (including the zero-input case).
+ m.write32le(0x1070,0xE16F5F16u); // CLZ r5,r6
+ m.write32le(0x1074,0xE16F7F16u); // CLZ r7,r6
+ cpu.set_register(6,0x00010000u);cpu.set_register(15,0x1070);cpu.step();assert(cpu.get_register(5)==15u);
+ cpu.set_register(6,0);cpu.step();assert(cpu.get_register(7)==32u);
+ // ARM SWP and SWPB exchange memory with a register.
+ m.write32le(0x1078,0xE1003091u); // SWP r3,r1,[r0]
+ m.write32le(0x107c,0xE1404091u); // SWPB r4,r1,[r0]
+ m.write32le(0x1600,0x11223344u);cpu.set_register(0,0x1600);cpu.set_register(1,0xaabbccddu);cpu.set_register(15,0x1078);
+ cpu.step();assert(cpu.get_register(3)==0x11223344u&&m.read32le(0x1600)==0xaabbccddu);
+ cpu.set_register(1,0x55u);cpu.set_register(15,0x107c);cpu.step();
+ assert(cpu.get_register(4)==0xddu&&m.read32le(0x1600)==0xaabbcc55u);
  cpu.set_register(15,0x90000000u);bool threw=false;try{cpu.step();}catch(const std::out_of_range&){threw=true;}assert(threw);
  return 0;
 }
