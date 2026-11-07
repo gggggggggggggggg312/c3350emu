@@ -132,6 +132,42 @@ int main(){
  m.write32le(0x10b0,0xE0921493u); // UMULLS r1,r2,r3,r4
  cpu.set_register(3,0u);cpu.set_register(4,0xffffffffu);cpu.set_register(15,0x10b0);cpu.step();
  assert(cpu.get_register(1)==0u&&cpu.get_register(2)==0u&&(cpu.get_cpsr()&(1u<<30))!=0);
+
+ // ARM CPSR/SPSR access and banked privileged registers.
+ m.write32le(0x10b8,0xE10F0000u); // MRS r0,CPSR
+ m.write32le(0x10bc,0xE129F001u); // MSR CPSR_c,r1
+ m.write32le(0x10c0,0xEF000123u); // SVC #0x123
+ m.write32le(0x10c4,0xE1B0F00Eu); // MOVS pc,lr (exception return)
+ cpu.reset(0x10b8);cpu.step();
+ assert(cpu.get_register(0)==0xD3u);
+ // Save distinct SVC stack/link values, switch to IRQ, then switch back.
+ cpu.set_register(13,0x11110000u);cpu.set_register(14,0x22220000u);
+ cpu.set_register(1,0x12u);cpu.set_register(15,0x10bc);cpu.step();
+ assert((cpu.get_cpsr()&0x1fu)==0x12u);
+ assert(cpu.get_register(13)==0u&&cpu.get_register(14)==0u);
+ cpu.set_register(13,0x33330000u);cpu.set_register(14,0x44440000u);
+ cpu.set_register(1,0x13u);cpu.set_register(15,0x10bc);cpu.step();
+ assert(cpu.get_register(13)==0x11110000u&&cpu.get_register(14)==0x22220000u);
+ // Enter SVC from System mode; SPSR_svc stores the old CPSR.
+ cpu.set_register(1,0x1fu);cpu.set_register(15,0x10bc);cpu.step();
+ assert((cpu.get_cpsr()&0x1fu)==0x1fu);
+ cpu.set_register(15,0x10c0);cpu.step();
+ assert((cpu.get_cpsr()&0x1fu)==0x13u&&cpu.getPC()==0x08u);
+ assert(cpu.get_register(14)==0x10c4u&&(cpu.get_cpsr()&(1u<<7))!=0);
+ // Inspect SPSR_svc, then execute MOVS pc,lr to restore System mode.
+ m.write32le(0x10c8,0xE14F2000u); // MRS r2,SPSR
+ cpu.set_register(15,0x10c8);cpu.step();
+ assert((cpu.get_register(2)&0x1fu)==0x1fu);
+ cpu.set_register(15,0x10c4);cpu.step();
+ assert((cpu.get_cpsr()&0x1fu)==0x1fu&&cpu.getPC()==0x10c4u);
+ // FIQ has its own R8-R14 bank; user/system and exception modes share R8-R12.
+ cpu.set_register(8,0x8888u);cpu.set_register(13,0xAAAAu);
+ cpu.set_register(1,0x11u);cpu.set_register(15,0x10bc);cpu.step();
+ assert(cpu.get_register(8)==0u&&cpu.get_register(13)==0u);
+ cpu.set_register(8,0xF888u);cpu.set_register(13,0xFDDDu);
+ cpu.set_register(1,0x1fu);cpu.set_register(15,0x10bc);cpu.step();
+ assert(cpu.get_register(8)==0x8888u&&cpu.get_register(13)==0xAAAAu);
+
  cpu.set_register(15,0x90000000u);bool threw=false;try{cpu.step();}catch(const std::out_of_range&){threw=true;}assert(threw);
  return 0;
 }
