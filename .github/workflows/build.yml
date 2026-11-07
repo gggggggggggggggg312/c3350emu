@@ -12,33 +12,29 @@ permissions:
 
 jobs:
   windows:
-    name: Windows x64 executable
+    name: Windows x64
     runs-on: windows-latest
-
     steps:
-      - name: Check out source
-        uses: actions/checkout@v4
-
-      - name: Configure CMake
+      - uses: actions/checkout@v4
+      - name: Configure
         run: cmake -S . -B build -A x64
-
-      - name: Build Release executable
+      - name: Build
         run: cmake --build build --config Release --parallel
-
-      - name: Prepare portable package
+      - name: Test
+        run: ctest --test-dir build -C Release --output-on-failure
+      - name: Package
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Force -Path dist | Out-Null
           Copy-Item build/Release/c3350emu.exe dist/
           @"
           C3350EMU
-          =========
-
-          This is an early emulator scaffold. It does not boot or emulate the
-          Samsung GT-C3350 yet. Run c3350emu.exe to check the compiled program.
+          ========
+          This is an early research build. It can inspect basic firmware file
+          metadata and header bytes. It does not decode the complete FLS format
+          or execute the Samsung GT-C3350 firmware yet.
           "@ | Set-Content dist/README.txt
-
-      - name: Upload Windows executable
+      - name: Upload Windows package
         uses: actions/upload-artifact@v4
         with:
           name: C3350EMU-windows-x64
@@ -47,19 +43,16 @@ jobs:
           retention-days: 30
 
   linux:
-    name: Linux x64 build
+    name: Linux x64
     runs-on: ubuntu-latest
-
     steps:
-      - name: Check out source
-        uses: actions/checkout@v4
-
-      - name: Configure CMake
+      - uses: actions/checkout@v4
+      - name: Configure
         run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
-
       - name: Build
         run: cmake --build build --parallel
-
+      - name: Test
+        run: ctest --test-dir build --output-on-failure
       - name: Upload Linux executable
         uses: actions/upload-artifact@v4
         with:
