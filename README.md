@@ -113,6 +113,24 @@ Pushes and pull requests trigger Windows and Linux builds plus tests. Download t
 
 Artifacts currently expire after 30 days. These are research tools, not a bootable phone emulator.
 
+## Native firmware analysis (no Python required)
+
+Use the built-in C++ analyzer to create a text report next to a firmware file:
+
+```powershell
+.\build\Release\c3350emu.exe --analyze-firmware firmware\BSY.fls
+```
+
+By default, the report is written as `BSY.fls.analysis.txt`. You can choose a report path:
+
+```powershell
+.\build\Release\c3350emu.exe --analyze-firmware firmware\BSY.fls bsy-report.txt
+```
+
+Run the same command for PSI, SLB, each BSY file/region supplied by the flashing package, and CDS. The report includes whole-file CRC-32 and FNV-1a identifiers, a header dump, 4 KiB entropy blocks, printable strings, long repeated-byte runs, pointer-shaped aligned words, and ARM branch-shaped words.
+
+**Important:** these are forensic heuristics, not a verified Samsung FLS decoder. The calculated CRC-32 is for identifying/checking the whole sample, not proof of an embedded firmware checksum. Candidate words are not confirmed load addresses or entry points. The report alone cannot establish the container layout; comparing multiple real firmware components is necessary.
+
 ## Analyze a FlashTool E2 log
 
 Save a FlashTool E2 session log as a text file, then run:
