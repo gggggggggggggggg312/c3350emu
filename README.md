@@ -11,6 +11,7 @@ Current functionality:
 - Separate simplified ARM instruction and data cache models with CP15 cache invalidation operations.
 - C++ command-line application.\n- Simulated battery subsystem with percentage, voltage estimate, charging/discharging, and elapsed-time progression (`--battery-demo`).
 - ARM Data Abort and Prefetch Abort exception entry with simplified CP15 fault registers.
+- ARM BLX-immediate support for ARM-to-Thumb interworking, including link-register setup.
 - Firmware-set boot-preparation report for PSI, SLB, BSY, and CDS (`--prepare-boot`).
 - Multi-region boot-plan loader: stages multiple explicitly selected FLS byte ranges into one shared RAM map, then executes from a chosen entry point so branches can hand off between loaded regions (`--run-boot-plan`).
 - Provisional GT-C3350 hardware research profile, available with --platform-info.
