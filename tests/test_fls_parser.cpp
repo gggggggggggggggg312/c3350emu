@@ -1,4 +1,5 @@
 #include "firmware/fls_parser.hpp"
+#include "memory/memory.hpp"
 
 #include <filesystem>
 #include <fstream>
@@ -37,6 +38,16 @@ int main() {
         require(firmware::hex_bytes(info.header) ==
                     "46 4c 53 00 11 22 41 42 43 44 45",
                 "Header bytes did not match the test input.");
+
+
+        Memory staging_memory;
+        staging_memory.map(0x10000000, 0x100, true, "test-staging-ram");
+        const auto loaded = firmware::FlsParser::load_raw_segment(
+            path, 6, 5, 0x10000010, staging_memory);
+        require(loaded.bytes_loaded == 5, "Raw segment loader returned wrong length.");
+        require(staging_memory.read8(0x10000010) == 0x41 &&
+                staging_memory.read8(0x10000014) == 0x45,
+                "Raw segment loader copied incorrect bytes.");
 
         const auto made = firmware::FlsParser::analyze(path, report);
         require(made == report, "Analyzer returned an unexpected report path.");
