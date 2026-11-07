@@ -239,6 +239,23 @@ void CPU::step_unchecked(){
   if(target&1u){cpsr_|=(1u<<5);registers_[15]=target&~1u;}
   else{cpsr_&=~(1u<<5);registers_[15]=target&~3u;}
  }
+ else if((ins&0x0FFF0FF0u)==0x06BF0F30u ||
+         (ins&0x0FFF0FF0u)==0x06BF0FB0u ||
+         (ins&0x0FFF0FF0u)==0x06FF0FB0u){
+  const unsigned rd=(ins>>12)&15u,rm=ins&15u;
+  if(rd==15u||rm==15u)throw std::runtime_error("REV with PC register is unpredictable");
+  const auto value=registers_[rm];
+  const auto byte_swap=((value&0x000000ffu)<<24)|((value&0x0000ff00u)<<8)|
+                        ((value&0x00ff0000u)>>8)|((value&0xff000000u)>>24);
+  const auto half_swap=((value&0x00ff00ffu)<<8)|((value&0xff00ff00u)>>8);
+  if((ins&0x000000f0u)==0x30u)registers_[rd]=byte_swap;
+  else if((ins&0x000000f0u)==0xb0u && (ins&0x00400000u)==0u)registers_[rd]=half_swap;
+  else{
+   const auto low=static_cast<std::uint16_t>(value);
+   const auto reversed=static_cast<std::uint16_t>((low>>8)|(low<<8));
+   registers_[rd]=static_cast<std::uint32_t>(static_cast<std::int32_t>(static_cast<std::int16_t>(reversed)));
+  }
+ }
  else if((ins&0x0FFF0FF0u)==0x016F0F10u){
   const unsigned rd=(ins>>12)&15u,rm=ins&15u;
   if(rd==15u||rm==15u)throw std::runtime_error("CLZ with PC register is unpredictable");
@@ -572,6 +589,22 @@ void CPU::execute_thumb(std::uint16_t ins){
   }
   if(write)registers_[rd]=r;set_nz(r);
   if(op==2||op==3||op==4||op==7){cpsr_&=~C;if(carry)cpsr_|=C;}
+  return;
+ }
+ // ARMv6 Thumb REV, REV16, and REVSH byte-reversal operations.
+ if((ins&0xFF00u)==0xBA00u){
+  const unsigned op=(ins>>6)&3u,rm=(ins>>3)&7u,rd=ins&7u;
+  const auto value=registers_[rm];
+  const auto byte_swap=((value&0x000000ffu)<<24)|((value&0x0000ff00u)<<8)|
+                       ((value&0x00ff0000u)>>8)|((value&0xff000000u)>>24);
+  const auto half_swap=((value&0x00ff00ffu)<<8)|((value&0xff00ff00u)>>8);
+  if(op==0)registers_[rd]=byte_swap;
+  else if(op==1)registers_[rd]=half_swap;
+  else if(op==3){
+   const auto low=static_cast<std::uint16_t>(value);
+   const auto reversed=static_cast<std::uint16_t>((low>>8)|(low<<8));
+   registers_[rd]=static_cast<std::uint32_t>(static_cast<std::int32_t>(static_cast<std::int16_t>(reversed)));
+  }else throw std::runtime_error("Reserved Thumb REV operation");
   return;
  }
  // High-register ADD/CMP/MOV and BX.
