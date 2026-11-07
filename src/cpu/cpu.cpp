@@ -53,7 +53,8 @@ void CPU::step(){
   if(byte){const auto old=memory_.read8(address);memory_.write8(address,static_cast<std::uint8_t>(source));registers_[rd]=old;}
   else{const auto old=memory_.read32le(address);memory_.write32le(address,source);registers_[rd]=old;}
  }
- else if((ins&0x0FC000F0u)==0x00000090u)execute_multiply(ins);
+ else if((ins&0x0F8000F0u)==0x00800090u)execute_long_multiply(ins);
+  else if((ins&0x0FC000F0u)==0x00000090u)execute_multiply(ins);
  else if((ins&0x0E000090u)==0x00000090u)execute_halfword_transfer(ins);
  else if((ins&0x0E000000u)==0x08000000u)execute_block_transfer(ins);
  else if((ins&0x0E000000u)==0x0A000000u)execute_branch(ins);
@@ -89,6 +90,34 @@ void CPU::execute_branch(std::uint32_t ins){
  const auto off=static_cast<std::int32_t>(ins<<8)>>6;const auto target=registers_[15]+static_cast<std::uint32_t>(off);
  if(ins&(1u<<24))registers_[14]=registers_[15]-4u;
  registers_[15]=target;
+}
+void CPU::execute_long_multiply(std::uint32_t ins){
+ const bool signed_multiply=(ins&(1u<<22))!=0;
+ const bool accumulate=(ins&(1u<<21))!=0;
+ const bool set_flags=(ins&(1u<<20))!=0;
+ const unsigned rd_hi=(ins>>16)&15u,rd_lo=(ins>>12)&15u;
+ const unsigned rs=(ins>>8)&15u,rm=ins&15u;
+ if(rd_hi==15u||rd_lo==15u||rs==15u||rm==15u||rd_hi==rd_lo)
+  throw std::runtime_error("Long multiply has invalid or overlapping registers");
+ std::uint64_t result=0;
+ if(signed_multiply){
+  const auto a=static_cast<std::int64_t>(static_cast<std::int32_t>(registers_[rm]));
+  const auto b=static_cast<std::int64_t>(static_cast<std::int32_t>(registers_[rs]));
+  result=static_cast<std::uint64_t>(a*b);
+ }else{
+  result=static_cast<std::uint64_t>(registers_[rm])*registers_[rs];
+ }
+ if(accumulate){
+  const std::uint64_t accumulator=(static_cast<std::uint64_t>(registers_[rd_hi])<<32)|registers_[rd_lo];
+  result+=accumulator;
+ }
+ registers_[rd_lo]=static_cast<std::uint32_t>(result);
+ registers_[rd_hi]=static_cast<std::uint32_t>(result>>32);
+ if(set_flags){
+  cpsr_&=~(N|Z);
+  if(result&(std::uint64_t{1}<<63))cpsr_|=N;
+  if(result==0)cpsr_|=Z;
+ }
 }
 void CPU::execute_multiply(std::uint32_t ins){
  const bool accumulate=ins&(1u<<21),set_flags=ins&(1u<<20);
