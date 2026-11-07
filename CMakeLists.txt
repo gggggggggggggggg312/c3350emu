@@ -10,6 +10,7 @@ add_library(c3350_core
     src/cpu/cpu.cpp
     src/firmware/fls_parser.cpp
     src/memory/memory.cpp
+    src/platform/platform.cpp
 )
 
 target_include_directories(c3350_core PUBLIC
