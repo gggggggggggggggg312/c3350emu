@@ -176,7 +176,7 @@ int main(){
  mmu_memory.map(0x00200000u,0x1000u,true,"Physical section");
  mmu_memory.write32le(0x00000004u,0x00200402u); // VA 0x00100000 -> PA 0x00200000, domain 0, AP=01
  mmu_memory.write32le(0x00000100u,0xEE020F10u); // MCR p15,0,r0,c2,c0,0 (TTBR0)
- mmu_memory.write32le(0x00000104u,0xEE123F10u); // MCR p15,0,r2,c3,c0,0 (DACR)
+ mmu_memory.write32le(0x00000104u,0xEE032F10u); // MCR p15,0,r2,c3,c0,0 (DACR)
  mmu_memory.write32le(0x00000108u,0xEE013F10u); // MCR p15,0,r3,c1,c0,0 (SCTLR)
  mmu_memory.write32le(0x00200000u,0xE3A0002Au); // MOV r0,#42
  mmu_memory.write32le(0x00200004u,0xE5810000u); // STR r0,[r1]
