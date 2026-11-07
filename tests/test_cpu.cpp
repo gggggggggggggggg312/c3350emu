@@ -111,6 +111,27 @@ int main(){
  // MIDR is readable and fixed for the selected ARM1176JZF-S r0p7 model.
  m.write32le(0x1098,0xEE101F10u); // MRC p15,0,r1,c0,c0,0
  cpu.set_register(15,0x1098);cpu.step();assert(cpu.get_register(1)==0x410FB767u);
+ // ARM long multiply family: UMULL, UMLAL, SMULL and SMLAL.
+ // UMULL r1,r2,r3,r4: 0x12345678 * 0x10 = 0x00000001 0x23456780
+ m.write32le(0x10a0,0xE0821493u);
+ cpu.set_register(3,0x12345678u);cpu.set_register(4,0x10u);cpu.set_register(15,0x10a0);cpu.step();
+ assert(cpu.get_register(1)==0x23456780u&&cpu.get_register(2)==1u);
+ // UMLAL adds the existing 64-bit value (5:6) to the product.
+ m.write32le(0x10a4,0xE0A21493u);
+ cpu.set_register(1,6u);cpu.set_register(2,5u);cpu.set_register(15,0x10a4);cpu.step();
+ assert(cpu.get_register(1)==0x469acf06u&&cpu.get_register(2)==6u);
+ // SMULL: -2 * 3 = 0xffffffff fffffffa.
+ m.write32le(0x10a8,0xE0C21493u);
+ cpu.set_register(3,0xfffffffeu);cpu.set_register(4,3u);cpu.set_register(15,0x10a8);cpu.step();
+ assert(cpu.get_register(1)==0xfffffffau&&cpu.get_register(2)==0xffffffffu);
+ // SMLAL adds a signed product to a 64-bit accumulator.
+ m.write32le(0x10ac,0xE0E21493u);
+ cpu.set_register(1,5u);cpu.set_register(2,0u);cpu.set_register(3,0xfffffffeu);cpu.set_register(4,3u);cpu.set_register(15,0x10ac);cpu.step();
+ assert(cpu.get_register(1)==0xffffffffu&&cpu.get_register(2)==0xffffffffu);
+ // Long multiply flags: N/Z reflect the full 64-bit result.
+ m.write32le(0x10b0,0xE0931493u); // UMULLS r1,r2,r3,r4
+ cpu.set_register(3,0u);cpu.set_register(4,0xffffffffu);cpu.set_register(15,0x10b0);cpu.step();
+ assert(cpu.get_register(1)==0u&&cpu.get_register(2)==0u&&(cpu.get_cpsr()&(1u<<30))!=0);
  cpu.set_register(15,0x90000000u);bool threw=false;try{cpu.step();}catch(const std::out_of_range&){threw=true;}assert(threw);
  return 0;
 }
