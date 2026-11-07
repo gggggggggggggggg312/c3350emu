@@ -21,6 +21,9 @@ private:
     void execute_branch(std::uint32_t instruction);
     void execute_multiply(std::uint32_t instruction);
     void execute_long_multiply(std::uint32_t instruction);
+    void execute_exclusive(std::uint32_t instruction);
+    bool exclusive_valid_ = false;
+    std::uint32_t exclusive_address_ = 0;
     void execute_block_transfer(std::uint32_t instruction);
     void execute_thumb(std::uint16_t instruction);
     void execute_cp15_transfer(std::uint32_t instruction);
