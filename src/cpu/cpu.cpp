@@ -222,7 +222,7 @@ void CPU::step_unchecked(){
   registers_[15]=target&~1u;
   return;
  }
- if(!condition_passed(ins>>28))return;
+ if(ins==0xF57FF01Fu){exclusive_valid_=false;return;} // CLREX: clear the local exclusive monitor.\n if(!condition_passed(ins>>28))return;
  if((ins&0x0FBF0FFFu)==0x010F0000u || (ins&0x0FB0FFF0u)==0x0120F000u || (ins&0x0FB0F000u)==0x0320F000u)
   execute_status_transfer(ins);
  else if((ins&0x0F000000u)==0x0F000000u)enter_svc_exception(registers_[15]);
