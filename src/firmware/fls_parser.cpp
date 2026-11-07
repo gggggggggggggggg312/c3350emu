@@ -112,6 +112,69 @@ std::string FlsParser::inspect_directory(const std::filesystem::path& path,
     return out.str();
 }
 
+
+std::string FlsParser::compare_headers_in_directory(
+    const std::filesystem::path& directory,
+    std::size_t bytes_to_compare,
+    std::uintmax_t max_file_size) {
+    if (!std::filesystem::exists(directory) ||
+        !std::filesystem::is_directory(directory)) {
+        throw std::runtime_error("Firmware directory does not exist or is not a directory: " +
+                                 directory.string());
+    }
+    if (bytes_to_compare == 0 || bytes_to_compare > 1024 * 1024) {
+        throw std::runtime_error("Comparison length must be between 1 and 1048576 bytes.");
+    }
+
+    std::vector<std::filesystem::path> paths;
+    for (const auto& entry : std::filesystem::directory_iterator(directory)) {
+        if (entry.is_regular_file() && entry.path().extension() == ".fls")
+            paths.push_back(entry.path());
+    }
+    std::sort(paths.begin(), paths.end());
+    if (paths.size() < 2)
+        throw std::runtime_error("At least two .fls files are required in the directory.");
+
+    std::vector<std::vector<std::uint8_t>> contents;
+    contents.reserve(paths.size());
+    for (const auto& path : paths)
+        contents.push_back(read_all(path, max_file_size));
+
+    std::ostringstream out;
+    out << "C3350EMU firmware header comparison\\n"
+        << "====================================\\n"
+        << "Directory: " << directory.string() << "\\n"
+        << "Bytes compared per pair: " << bytes_to_compare << "\\n"
+        << "FLS files found: " << paths.size() << "\\n\\n";
+
+    for (std::size_t i = 0; i < paths.size(); ++i) {
+        for (std::size_t j = i + 1; j < paths.size(); ++j) {
+            const auto limit = std::min<std::size_t>(
+                bytes_to_compare, std::min(contents[i].size(), contents[j].size()));
+            std::size_t first_diff = 0;
+            while (first_diff < limit &&
+                   contents[i][first_diff] == contents[j][first_diff])
+                ++first_diff;
+
+            out << paths[i].filename().string() << " vs "
+                << paths[j].filename().string() << ": ";
+            if (first_diff == limit && limit == bytes_to_compare) {
+                out << "first " << limit << " bytes IDENTICAL\\n";
+            } else if (first_diff < limit) {
+                out << "first difference at " << hex_u64(first_diff, 8)
+                    << " (A=" << hex_u64(contents[i][first_diff], 2)
+                    << ", B=" << hex_u64(contents[j][first_diff], 2)
+                    << "); common prefix=" << first_diff << " bytes\\n";
+            } else {
+                out << "matched " << limit << " bytes; one file ended before "
+                    << bytes_to_compare << " bytes\\n";
+            }
+        }
+    }
+    out << "\\nInterpretation: this compares raw prefixes only; it does not identify FLS fields.\\n";
+    return out.str();
+}
+
 FlsInfo FlsParser::inspect(const std::filesystem::path& path,
                            std::size_t header_size,
                            std::uintmax_t max_file_size) {
