@@ -19,6 +19,7 @@ static void print_help(const char* program) {
         << "  " << program << " --platform-info\n"
         << "  " << program << " --lpddr1-sequence\n"
         << "  " << program << " --run-raw <file> <ram-base> <ram-size> <entry> <max-instructions>\n"
+        << "  " << program << " --run-fls-segment <file.fls> <offset> <length> <ram-base> <ram-size> <load-address> <entry> <max-instructions>\n"
         << "  " << program << " --inspect-firmware <file.fls>\n"
         << "  " << program << " --analyze-firmware <file.fls> [report.txt]\n"
         << "  " << program << " --inspect-fls-directory <file.fls>\n"
@@ -122,6 +123,67 @@ int main(int argc, char** argv) {
             return 0;
         } catch (const std::exception& error) {
             std::cerr << "Raw execution failed: " << error.what() << "\n";
+            return 1;
+        }
+    }
+
+
+    if (argc == 10 && std::string(argv[1]) == "--run-fls-segment") {
+        try {
+            const auto offset = parse_number(argv[3], "FLS file offset");
+            const auto length = parse_number(argv[4], "segment length");
+            const auto ram_base = parse_number(argv[5], "RAM base");
+            const auto ram_size = parse_number(argv[6], "RAM size");
+            const auto load_address = parse_number(argv[7], "load address");
+            const auto entry = parse_number(argv[8], "entry point");
+            const auto limit = parse_number(argv[9], "instruction limit");
+            if (!length || ram_base > 0xffffffffu || load_address > 0xffffffffu ||
+                entry > 0xffffffffu || !ram_size ||
+                ram_size > std::numeric_limits<std::size_t>::max() ||
+                ram_base + ram_size > (std::uint64_t{1} << 32) || !limit)
+                throw std::runtime_error("Address, size, or instruction limit is out of range.");
+            const bool thumb = (entry & 1u) != 0;
+            const auto aligned_entry = entry & ~std::uint64_t{1};
+            const auto instruction_size = thumb ? 2u : 4u;
+            if (aligned_entry < load_address ||
+                aligned_entry + instruction_size > load_address + length ||
+                (!thumb && (entry & 3u)))
+                throw std::runtime_error("Entry point must be aligned and inside the loaded segment.");
+
+            Memory memory;
+            memory.map(static_cast<std::uint32_t>(ram_base),
+                       static_cast<std::size_t>(ram_size), true,
+                       "user-configured FLS staging RAM");
+            const auto loaded = firmware::FlsParser::load_raw_segment(
+                argv[2], offset, static_cast<std::size_t>(length),
+                static_cast<std::uint32_t>(load_address), memory);
+            CPU cpu(memory);
+            cpu.reset(static_cast<std::uint32_t>(entry));
+            std::cout << "Executing selected FLS byte range\n"
+                      << "File: " << loaded.source.string() << "\n"
+                      << "File offset: 0x" << std::hex << loaded.file_offset
+                      << "  load address: 0x" << loaded.load_address
+                      << "  entry: 0x" << entry << "\n"
+                      << "CRC-32: 0x" << loaded.crc32 << std::dec
+                      << "  bytes loaded: " << loaded.bytes_loaded
+                      << "  mode: " << (thumb ? "Thumb" : "ARM") << "\n";
+            std::string reason = "instruction limit reached";
+            while (cpu.instructions_executed() < limit) {
+                try { cpu.step(); }
+                catch (const std::exception& error) { reason = error.what(); break; }
+            }
+            std::cout << "Stopped: " << reason
+                      << "\nInstructions executed: " << cpu.instructions_executed()
+                      << "\nPC: 0x" << std::hex << cpu.getPC() << "\n";
+            for (unsigned i = 0; i < 16; ++i)
+                std::cout << "R" << std::dec << i << "=0x" << std::hex
+                          << cpu.get_register(i) << ((i % 4 == 3) ? "\n" : "  ");
+            std::cout << "CPSR=0x" << std::hex << cpu.get_cpsr() << std::dec << "\n"
+                      << "This runs a chosen byte range, not an automatically decoded FLS segment.\n"
+                      << "Memory addresses and entry point are user-supplied, not verified C3350 hardware values.\n";
+            return 0;
+        } catch (const std::exception& error) {
+            std::cerr << "FLS segment execution failed: " << error.what() << "\n";
             return 1;
         }
     }
