@@ -13,8 +13,10 @@ static void print_help(const char* program) {
         << "  " << program << " --help\n"
         << "  " << program << " --platform-info\n"
         << "  " << program << " --inspect-firmware <file.fls>\n"
-        << "  " << program << " --analyze-firmware <file.fls> [report.txt]\n\n"
+        << "  " << program << " --analyze-firmware <file.fls> [report.txt]\n"
+        << "  " << program << " --inspect-fls-directory <file.fls>\n\n"
         << "The native analyzer creates a text report without Python or extra dependencies.\n"
+        << "The directory scanner reports candidate 32-byte records; its layout is not yet validated.\n"
         << "Its pattern matches are research leads, not verified FLS fields or addresses.\n";
 }
 static void print_platform_info() {
@@ -27,6 +29,15 @@ static void print_platform_info() {
 int main(int argc, char** argv) {
     if (argc == 2 && std::string(argv[1]) == "--help") { print_help(argv[0]); return 0; }
     if (argc == 2 && std::string(argv[1]) == "--platform-info") { print_platform_info(); return 0; }
+    if (argc == 3 && std::string(argv[1]) == "--inspect-fls-directory") {
+        try {
+            std::cout << firmware::FlsParser::inspect_directory(argv[2]);
+            return 0;
+        } catch (const std::exception& e) {
+            std::cerr << "Directory inspection failed: " << e.what() << "\n";
+            return 1;
+        }
+    }
     if ((argc == 3 || argc == 4) && std::string(argv[1]) == "--analyze-firmware") {
         try {
             const auto report=firmware::FlsParser::analyze(argv[2], argc==4 ? argv[3] : "");
