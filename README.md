@@ -18,7 +18,7 @@ Current functionality:
 - Automated C++ tests through CTest and GitHub Actions.
 - Windows and Linux CI builds.
 
-The CPU interpreter is an early development component, not yet a verified XMM2150/GT-C3350 CPU model. It implements only a subset of ARM-state instructions; Thumb state, exceptions, coprocessors, MMU behavior, timing, and hardware-specific reset behavior are not implemented. The CPU architecture/core identification remains provisional. See docs/CPU_IMPLEMENTATION.md.\n\nThe FLS parser is intentionally conservative. The complete Samsung FLS container structure, segment records, checksums, load addresses, and entry-point rules have not yet been verified. The current parser does not claim to extract executable sections.
+The CPU interpreter is an early development component, not yet a complete XMM2150/GT-C3350 CPU model. Intel's XMM 2130/2150 platform brief identifies the baseband CPU family as ARM1176; the exact ARM1176 implementation suffix and silicon revision remain unconfirmed. The interpreter implements only a subset of ARM-state instructions; Thumb state, exceptions, coprocessors, MMU behavior, timing, and hardware-specific reset behavior are not implemented. See docs/CPU_IMPLEMENTATION.md and docs/HARDWARE_RESEARCH.md.\n\nThe FLS parser is intentionally conservative. The complete Samsung FLS container structure, segment records, checksums, load addresses, and entry-point rules have not yet been verified. The current parser does not claim to extract executable sections.
 
 ## Hardware research
 
