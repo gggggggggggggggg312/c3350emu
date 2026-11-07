@@ -22,7 +22,7 @@ The CPU interpreter is an early development component, not yet a complete XMM215
 
 ## Hardware research
 
-Current evidence points to the Intel XMM2150 platform family and an ARM11 CPU family. A C3350 service log reports the memory marking K5W1G12ACP(C3350)S, while related part-number documentation suggests a MuxOneNAND device. The exact fitted memory variant and its register map still need confirmation.
+Current evidence points to the Intel XMM2150 platform family with an ARM1176 CPU family. A C3350 service log reports the memory marking K5W1G12ACP(C3350)S, while related part-number documentation suggests a MuxOneNAND device. The exact fitted memory variant and its register map still need confirmation.
 
 A C3350 flashing log reports bootloader identifier 2150_OD_KJ1_3.1, protocol 3.32, boot mode BB, flash ID 003000EC, and a download sequence in which BSY is handled as two regions. These downloader region numbers are **not** treated as CPU physical addresses.
 
@@ -132,4 +132,4 @@ Firmware binaries are intentionally excluded from Git. Only redistribute firmwar
 
 ## License
 
-No license has been selected. Until one is added, all rights are reserved by default.
+C3350EMU is licensed under the [MIT License](LICENSE). You may use, modify, and redistribute the project under the terms of that license. The license applies to this repository's original code and documentation; third-party components and firmware remain subject to their own licenses and redistribution restrictions.
