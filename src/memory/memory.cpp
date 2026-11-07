@@ -1,6 +1,7 @@
 #include "memory.hpp"
 
 #include <limits>
+#include <algorithm>
 #include <stdexcept>
 
 void Memory::map(std::uint32_t base, std::size_t size, bool writable,
@@ -75,4 +76,13 @@ void Memory::write32le(std::uint32_t address, std::uint32_t value) {
 
 std::size_t Memory::region_count() const noexcept {
     return regions_.size();
+}
+
+void Memory::write_block(std::uint32_t address,
+                         const std::vector<std::uint8_t>& data) {
+    if (data.empty()) throw std::invalid_argument("Memory write block cannot be empty.");
+    auto& region = find_writable(address, data.size());
+    const auto offset = static_cast<std::size_t>(address - region.base);
+    std::copy(data.begin(), data.end(), region.bytes.begin() +
+              static_cast<std::ptrdiff_t>(offset));
 }
