@@ -56,6 +56,27 @@ C3350EMU/
 
 The disassembly script is an experiment, not proof that the selected region is executable ARM code. Confirm container headers, segment boundaries, load addresses, and processor mode before relying on its output.
 
+## Download a compiled build
+
+GitHub Actions builds the project automatically on pushes to `main`, pull requests, and manual workflow runs.
+
+1. Open the repository's **Actions** tab.
+2. Select the latest successful **Build C3350EMU** run.
+3. Under **Artifacts**, download:
+   - `C3350EMU-windows-x64` for Windows (contains `c3350emu.exe`).
+   - `C3350EMU-linux-x64` for Linux.
+4. Extract the downloaded artifact and run the executable.
+
+On Windows, you can also build locally with Visual Studio Build Tools and CMake:
+
+```powershell
+cmake -S . -B build -A x64
+cmake --build build --config Release
+.\build\Release\c3350emu.exe
+```
+
+**Current limitation:** These downloads are compiled test scaffolds, not a working phone emulator yet. The executable currently reports project/CPU scaffold status; original firmware execution is still future work.
+
 ## Firmware files
 
 Firmware binaries are intentionally excluded from Git. Only commit files you are legally allowed to redistribute. Keep original firmware locally and record hashes in investigation notes.
