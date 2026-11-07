@@ -141,11 +141,11 @@ std::string FlsParser::compare_headers_in_directory(
         contents.push_back(read_all(path, max_file_size));
 
     std::ostringstream out;
-    out << "C3350EMU firmware header comparison\\n"
-        << "====================================\\n"
-        << "Directory: " << directory.string() << "\\n"
-        << "Bytes compared per pair: " << bytes_to_compare << "\\n"
-        << "FLS files found: " << paths.size() << "\\n\\n";
+    out << "C3350EMU firmware header comparison\n"
+        << "====================================\n"
+        << "Directory: " << directory.string() << "\n"
+        << "Bytes compared per pair: " << bytes_to_compare << "\n"
+        << "FLS files found: " << paths.size() << "\n\n";
 
     for (std::size_t i = 0; i < paths.size(); ++i) {
         for (std::size_t j = i + 1; j < paths.size(); ++j) {
@@ -159,19 +159,19 @@ std::string FlsParser::compare_headers_in_directory(
             out << paths[i].filename().string() << " vs "
                 << paths[j].filename().string() << ": ";
             if (first_diff == limit && limit == bytes_to_compare) {
-                out << "first " << limit << " bytes IDENTICAL\\n";
+                out << "first " << limit << " bytes IDENTICAL\n";
             } else if (first_diff < limit) {
                 out << "first difference at " << hex_u64(first_diff, 8)
                     << " (A=" << hex_u64(contents[i][first_diff], 2)
                     << ", B=" << hex_u64(contents[j][first_diff], 2)
-                    << "); common prefix=" << first_diff << " bytes\\n";
+                    << "); common prefix=" << first_diff << " bytes\n";
             } else {
                 out << "matched " << limit << " bytes; one file ended before "
-                    << bytes_to_compare << " bytes\\n";
+                    << bytes_to_compare << " bytes\n";
             }
         }
     }
-    out << "\\nInterpretation: this compares raw prefixes only; it does not identify FLS fields.\\n";
+    out << "\nInterpretation: this compares raw prefixes only; it does not identify FLS fields.\n";
     return out.str();
 }
 
