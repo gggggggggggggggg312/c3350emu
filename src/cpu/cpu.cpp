@@ -5,7 +5,7 @@ constexpr std::uint32_t N=1u<<31, Z=1u<<30, C=1u<<29, V=1u<<28, NZCV=N|Z|C|V;
 std::uint32_t ror(std::uint32_t x,unsigned n){n&=31u;return n?((x>>n)|(x<<(32u-n))):x;}
 }
 CPU::CPU(Memory& m):memory_(m){}
-void CPU::reset(std::uint32_t entry){registers_.fill(0);user_bank_.fill(0);fiq_bank_.fill(0);irq_bank_.fill(0);svc_bank_.fill(0);abort_bank_.fill(0);undefined_bank_.fill(0);spsr_fiq_=spsr_irq_=spsr_svc_=spsr_abort_=spsr_undefined_=0;cp15_control_=cp15_ttbr0_=cp15_dacr_=cp15_context_id_=0;data_fault_status_=instruction_fault_status_=data_fault_address_=instruction_fault_address_=fault_address_=fault_status_=0;invalidate_tlb_all();invalidate_instruction_cache(0u,true);invalidate_data_cache(0u,true);cpsr_=0xD3;if(entry&1u){cpsr_|=(1u<<5);registers_[15]=entry&~1u;}else registers_[15]=entry;instructions_executed_=0;exclusive_valid_=false;exclusive_address_=0;}
+void CPU::reset(std::uint32_t entry){registers_.fill(0);user_bank_.fill(0);fiq_bank_.fill(0);irq_bank_.fill(0);svc_bank_.fill(0);abort_bank_.fill(0);undefined_bank_.fill(0);spsr_fiq_=spsr_irq_=spsr_svc_=spsr_abort_=spsr_undefined_=0;cp15_control_=cp15_ttbr0_=cp15_dacr_=cp15_context_id_=0;cp15_c9_.fill(0);data_fault_status_=instruction_fault_status_=data_fault_address_=instruction_fault_address_=fault_address_=fault_status_=0;invalidate_tlb_all();invalidate_instruction_cache(0u,true);invalidate_data_cache(0u,true);cpsr_=0xD3;if(entry&1u){cpsr_|=(1u<<5);registers_[15]=entry&~1u;}else registers_[15]=entry;instructions_executed_=0;exclusive_valid_=false;exclusive_address_=0;}
 void CPU::invalidate_tlb_all(){for(auto& entry:tlb_)entry.valid=false;}
 void CPU::invalidate_tlb_mva(std::uint32_t address){
  const auto page=address>>12;
@@ -327,6 +327,7 @@ void CPU::execute_cp15_transfer(std::uint32_t ins){
  else if(crn==2u&&crm==0u&&opc2==0u)value=&cp15_ttbr0_;
  else if(crn==3u&&crm==0u&&opc2==0u)value=&cp15_dacr_;
  else if(crn==13u&&crm==0u&&opc2==0u)value=&cp15_context_id_;
+ else if(crn==9u&&(crm==1u||crm==2u)&&opc2<=3u)value=&cp15_c9_[crm*8u+opc2];
  else if(crn==0u&&crm==0u&&opc2==0u){
   if(!read)throw std::runtime_error("CP15 MIDR is read-only");
   // ARM1176JZF-S r0p7 identification value; this is a selectable CPU model,
