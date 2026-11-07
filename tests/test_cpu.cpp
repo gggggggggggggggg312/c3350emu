@@ -416,6 +416,27 @@ int main(){
  assert(prefetch_cpu.get_instruction_fault_status()==0x8u);
  assert(prefetch_cpu.get_register(14)==0x90000004u);
 
+ // PSI reads implementation-defined CP15 c9 registers during early setup.
+ // Model the observed c9,c2,0 and c9,c1,{0,1,2,3} bank as reset-zero
+ // storage so these MRC instructions execute instead of raising an undefined
+ // CP15-register error. This is a minimal compatibility model, not a claim
+ // that the values or register semantics match the physical XMM2150 core.
+ m.write32le(0x1720u,0xEE090F12u); // MRC p15,0,r0,c9,c2,0
+ m.write32le(0x1724u,0xEE090F51u); // MRC p15,0,r0,c9,c1,2
+ m.write32le(0x1728u,0xEE090F71u); // MRC p15,0,r0,c9,c1,3
+ m.write32le(0x172cu,0xEE091F11u); // MRC p15,0,r1,c9,c1,0
+ m.write32le(0x1730u,0xEE091F31u); // MRC p15,0,r1,c9,c1,1
+ cpu.reset(0x1720u);
+ for(unsigned i=0;i<5;++i)cpu.step();
+ assert(cpu.getPC()==0x1734u);
+ assert(cpu.get_register(0)==0u&&cpu.get_register(1)==0u);
+ // The modeled c9 bank also supports read/write storage for testability.
+ m.write32le(0x1740u,0xEE092F51u); // MCR p15,0,r2,c9,c1,2
+ m.write32le(0x1744u,0xEE090F51u); // MRC p15,0,r0,c9,c1,2
+ cpu.reset(0x1740u);cpu.set_register(2,0x12345678u);
+ cpu.step();cpu.step();
+ assert(cpu.get_register(0)==0x12345678u);
+
  // Execute the exact SLB cache-maintenance sequence observed at file offset
  // 0x1110: MOV R0,#0; invalidate I-cache; invalidate D-cache; MOV R0,R0; BX LR.
  // This verifies the firmware sequence is accepted as real CPU instructions.
