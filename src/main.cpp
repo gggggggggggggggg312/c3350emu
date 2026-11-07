@@ -2,18 +2,17 @@
 #include "firmware/fls_parser.hpp"
 
 #include <exception>
-#include <iomanip>
 #include <iostream>
 #include <string>
 
 static void print_help(const char* program) {
     std::cout
-        << "C3350EMU - Samsung GT-C3350 research emulator\\n\\n"
-        << "Usage:\\n"
-        << "  " << program << " --help\\n"
-        << "  " << program << " --inspect-firmware <file.fls>\\n\\n"
+        << "C3350EMU - Samsung GT-C3350 research emulator\n\n"
+        << "Usage:\n"
+        << "  " << program << " --help\n"
+        << "  " << program << " --inspect-firmware <file.fls>\n\n"
         << "The firmware inspector currently reports file metadata and raw header "
-           "bytes. It does not yet decode FLS segments or boot firmware.\\n";
+           "bytes. It does not yet decode FLS segments or boot firmware.\n";
 }
 
 int main(int argc, char** argv) {
@@ -25,15 +24,15 @@ int main(int argc, char** argv) {
     if (argc == 3 && std::string(argv[1]) == "--inspect-firmware") {
         try {
             const auto info = firmware::FlsParser::inspect(argv[2]);
-            std::cout << "C3350EMU firmware inspection\\n"
-                      << "File: " << info.path.string() << "\\n"
-                      << "Size: " << info.file_size << " bytes\\n"
-                      << "Classification: " << info.classification << "\\n"
-                      << "Header: " << firmware::hex_bytes(info.header) << "\\n"
-                      << "Note: " << info.note << "\\n";
+            std::cout << "C3350EMU firmware inspection\n"
+                      << "File: " << info.path.string() << "\n"
+                      << "Size: " << info.file_size << " bytes\n"
+                      << "Classification: " << info.classification << "\n"
+                      << "Header: " << firmware::hex_bytes(info.header) << "\n"
+                      << "Note: " << info.note << "\n";
             return 0;
         } catch (const std::exception& error) {
-            std::cerr << "Firmware inspection failed: " << error.what() << "\\n";
+            std::cerr << "Firmware inspection failed: " << error.what() << "\n";
             return 1;
         }
     }
@@ -45,9 +44,9 @@ int main(int argc, char** argv) {
 
     CPU cpu;
     cpu.reset();
-    std::cout << "C3350EMU research scaffold\\n"
-              << "CPU execution: not implemented\\n"
-              << "Firmware boot: not implemented\\n"
-              << "Use --inspect-firmware <file.fls> to inspect a firmware file.\\n";
+    std::cout << "C3350EMU research scaffold\n"
+              << "CPU execution: not implemented\n"
+              << "Firmware boot: not implemented\n"
+              << "Use --inspect-firmware <file.fls> to inspect a firmware file.\n";
     return 0;
 }
