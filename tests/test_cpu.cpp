@@ -101,7 +101,7 @@ int main(){
  cpu.set_register(15,0x1084);cpu.step();assert(cpu.get_register(1)==0x00001005u);
  // TTBR0 and Domain Access Control register round trips.
  m.write32le(0x1088,0xEE020F10u); // MCR p15,0,r0,c2,c0,0
- m.write32le(0x108c,0xEE123F10u); // MRC p15,0,r3,c2,c0,0
+ m.write32le(0x108c,0xEE032F10u); // MRC p15,0,r3,c2,c0,0
  cpu.set_register(0,0x00104000u);cpu.set_register(15,0x1088);cpu.step();
  cpu.set_register(15,0x108c);cpu.step();assert(cpu.get_register(3)==0x00104000u);
  m.write32le(0x1090,0xEE030F10u); // MCR p15,0,r0,c3,c0,0
