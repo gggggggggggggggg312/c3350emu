@@ -17,7 +17,7 @@
 namespace {
 HWND outputBox=nullptr, ramBaseBox=nullptr, ramSizeBox=nullptr, entryBox=nullptr;
 std::string selectedFile;\nplatform::Battery battery(1000u, 100u);
-constexpr int ID_OPEN=1001, ID_RUN=1002, ID_BASE=1003, ID_SIZE=1004, ID_ENTRY=1005;
+constexpr int ID_OPEN=1001, ID_RUN=1002, ID_BASE=1003, ID_SIZE=1004, ID_ENTRY=1005, ID_CHARGE=1006, ID_TICK=1007;
 void append(const std::string& text){
  int n=GetWindowTextLengthA(outputBox);SendMessageA(outputBox,EM_SETSEL,n,n);
  SendMessageA(outputBox,EM_REPLACESEL,FALSE,reinterpret_cast<LPARAM>(text.c_str()));
@@ -26,6 +26,13 @@ std::uint64_t number(HWND box,const char* label){
  char value[64]{};GetWindowTextA(box,value,sizeof(value));std::size_t used=0;
  auto n=std::stoull(value,&used,0);if(used==0||value[used]!='\0')throw std::runtime_error(std::string("Invalid ")+label);
  return n;
+}
+void show_battery(){
+ std::ostringstream out;
+ out<<"Battery: "<<unsigned(battery.percentage())<<"% | "<<battery.voltage_mv()<<" mV | "
+    <<battery.remaining_mah()<<"/"<<battery.capacity_mah()<<" mAh | "
+    <<(battery.charging()?"charging":(battery.full()?"full":"not charging"))<<"\\r\\n";
+ append(out.str());
 }
 void open_file(HWND window){
  char path[MAX_PATH]{};OPENFILENAMEA ofn{};ofn.lStructSize=sizeof(ofn);ofn.hwndOwner=window;
@@ -72,11 +79,13 @@ LRESULT CALLBACK window_proc(HWND w,UINT m,WPARAM wp,LPARAM lp){
   CreateWindowA("STATIC","Entry",WS_CHILD|WS_VISIBLE,567,17,40,20,w,nullptr,nullptr,nullptr);
   entryBox=CreateWindowA("EDIT","0x01000000",WS_CHILD|WS_VISIBLE|WS_BORDER|ES_AUTOHSCROLL,610,13,100,25,w,(HMENU)ID_ENTRY,nullptr,nullptr);
   CreateWindowA("BUTTON","Run raw ARM (100k instructions)",WS_CHILD|WS_VISIBLE,720,12,235,30,w,(HMENU)ID_RUN,nullptr,nullptr);
-  outputBox=CreateWindowExA(WS_EX_CLIENTEDGE,"EDIT","C3350EMU GUI research console\r\nSelect a raw executable image or an FLS file to inspect its header.\r\n",WS_CHILD|WS_VISIBLE|WS_VSCROLL|WS_HSCROLL|ES_MULTILINE|ES_AUTOVSCROLL|ES_READONLY,12,55,943,590,w,nullptr,nullptr,nullptr);
+  CreateWindowA("BUTTON","Toggle charging",WS_CHILD|WS_VISIBLE,12,48,130,28,w,(HMENU)ID_CHARGE,nullptr,nullptr);
+  CreateWindowA("BUTTON","Advance 1 minute",WS_CHILD|WS_VISIBLE,150,48,145,28,w,(HMENU)ID_TICK,nullptr,nullptr);
+  outputBox=CreateWindowExA(WS_EX_CLIENTEDGE,"EDIT","C3350EMU GUI research console\r\nSelect a raw executable image or an FLS file to inspect its header.\r\n",WS_CHILD|WS_VISIBLE|WS_VSCROLL|WS_HSCROLL|ES_MULTILINE|ES_AUTOVSCROLL|ES_READONLY,12,82,943,563,w,nullptr,nullptr,nullptr);
   return 0;
  }
- if(m==WM_COMMAND){if(LOWORD(wp)==ID_OPEN)open_file(w);else if(LOWORD(wp)==ID_RUN)run_image();return 0;}
- if(m==WM_SIZE&&outputBox){MoveWindow(outputBox,12,55,LOWORD(lp)-24,HIWORD(lp)-67,TRUE);return 0;}
+ if(m==WM_COMMAND){if(LOWORD(wp)==ID_OPEN)open_file(w);else if(LOWORD(wp)==ID_RUN)run_image();else if(LOWORD(wp)==ID_CHARGE){battery.set_charging(!battery.charging());show_battery();}else if(LOWORD(wp)==ID_TICK){battery.advance_seconds(60);show_battery();}return 0;}
+ if(m==WM_SIZE&&outputBox){MoveWindow(outputBox,12,82,LOWORD(lp)-24,HIWORD(lp)-94,TRUE);return 0;}
  if(m==WM_DESTROY){PostQuitMessage(0);return 0;}
  return DefWindowProcA(w,m,wp,lp);
 }
