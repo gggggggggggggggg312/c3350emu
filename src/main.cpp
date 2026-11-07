@@ -38,11 +38,11 @@ int main(int argc, char** argv) {
     if (argc == 2 && std::string(argv[1]) == "--lpddr1-sequence") {
         memory::Lpddr1Protocol lpddr;
         const auto trace = lpddr.initialize();
-        std::cout << "Generic LPDDR1 protocol trace (NOT XMM2150 register programming)\\n";
+        std::cout << "Generic LPDDR1 protocol trace (NOT XMM2150 register programming)\n";
         for (std::size_t i = 0; i < trace.size(); ++i)
-            std::cout << (i + 1) << ". " << trace[i] << "\\n";
-        std::cout << "Protocol trace complete: " << (lpddr.ready() ? "ready" : "not ready") << "\\n";
-        std::cout << "No controller registers, physical addresses, or real delays were used.\\n";
+            std::cout << (i + 1) << ". " << trace[i] << "\n";
+        std::cout << "Protocol trace complete: " << (lpddr.ready() ? "ready" : "not ready") << "\n";
+        std::cout << "No controller registers, physical addresses, or real delays were used.\n";
         return 0;
     }
 
