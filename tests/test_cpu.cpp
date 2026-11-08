@@ -449,5 +449,38 @@ int main(){
  for(unsigned i=0;i<5;++i)cpu.step();
  assert(cpu.getPC()==0x1800u);
  assert(cpu.get_register(0)==0u);
+
+ // The CDS firmware explicitly initializes separate IRQ, FIQ, Undefined,
+ // Abort, Supervisor and System stack pointers using MRS/BIC/ORR/MSR/MOV SP.
+ // Execute that same instruction pattern and verify each mode keeps its own SP.
+ Memory mode_memory;
+ mode_memory.map(0x2000u,0x1000u,true,"Processor-mode stack test RAM");
+ const std::uint32_t modes[]={0x12u,0x11u,0x1bu,0x17u,0x13u,0x1fu};
+ const std::uint32_t stacks[]={0x21000000u,0x22000000u,0x23000000u,
+                               0x24000000u,0x25000000u,0x26000000u};
+ CPU mode_cpu(mode_memory);
+ mode_cpu.reset(0x2000u);
+ for(unsigned i=0;i<6;++i){
+  const auto pc=0x2000u+i*0x20u;
+  mode_memory.write32le(pc+0u,0xE10F2000u); // MRS r2,CPSR
+  mode_memory.write32le(pc+4u,0xE3C2201Fu); // BIC r2,r2,#0x1F
+  mode_memory.write32le(pc+8u,0xE3822000u|modes[i]); // ORR r2,r2,#mode
+  mode_memory.write32le(pc+12u,0xE12FF002u); // MSR CPSR_fsxc,r2
+  mode_memory.write32le(pc+16u,0xE1A0D000u); // MOV sp,r0
+  mode_cpu.set_register(0,stacks[i]);
+  mode_cpu.set_register(15,pc);
+  for(unsigned n=0;n<5;++n)mode_cpu.step();
+  assert((mode_cpu.get_cpsr()&0x1fu)==modes[i]);
+  assert(mode_cpu.get_register(13)==stacks[i]);
+ }
+ // Revisit every mode to prove the six stack pointers stayed banked.
+ mode_memory.write32le(0x2100u,0xE12FF002u); // MSR CPSR_fsxc,r2
+ for(unsigned i=0;i<6;++i){
+  mode_cpu.set_register(2,modes[i]);
+  mode_cpu.set_register(15,0x2100u);
+  mode_cpu.step();
+  assert((mode_cpu.get_cpsr()&0x1fu)==modes[i]);
+  assert(mode_cpu.get_register(13)==stacks[i]);
+ }
  return 0;
 }
