@@ -136,6 +136,8 @@ BootPlan parse_boot_plan(const std::filesystem::path& path) {
     for(std::size_t i=0;i<plan.memory_stubs.size();++i) {
         const auto& stub=plan.memory_stubs[i];
         const std::uint64_t end=static_cast<std::uint64_t>(stub.base)+stub.size;
+        if(stub.base<ram_end&&plan.ram_base<end)
+            throw std::runtime_error("A STUB region overlaps configured RAM");
         for(const auto& segment:plan.segments) {
             const auto segment_end=static_cast<std::uint64_t>(segment.load_address)+segment.length;
             if(stub.base<segment_end&&segment.load_address<end)
