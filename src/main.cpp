@@ -99,6 +99,8 @@ int main(int argc, char** argv) {
             const auto plan = firmware::parse_boot_plan(argv[2]);
             Memory memory;
             memory.map(plan.ram_base, plan.ram_size, true, "boot-plan shared RAM");
+            for(const auto& stub:plan.memory_stubs)
+                memory.map_filled(stub.base,stub.size,true,"experimental memory stub",stub.initial_value);
             std::cout << "C3350EMU MULTI-REGION FIRMWARE EXECUTION\\n"
                       << "RAM: 0x" << std::hex << plan.ram_base
                       << " - 0x" << (static_cast<std::uint64_t>(plan.ram_base)+plan.ram_size-1u)
