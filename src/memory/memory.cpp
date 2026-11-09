@@ -6,6 +6,11 @@
 
 void Memory::map(std::uint32_t base, std::size_t size, bool writable,
                  const std::string& name) {
+    map_filled(base, size, writable, name, 0);
+}
+
+void Memory::map_filled(std::uint32_t base, std::size_t size, bool writable,
+                        const std::string& name, std::uint8_t initial_value) {
     if (size == 0) throw std::invalid_argument("Memory region cannot be empty.");
     const std::uint64_t end = static_cast<std::uint64_t>(base) + size;
     if (end > (std::uint64_t{1} << 32))
@@ -18,7 +23,7 @@ void Memory::map(std::uint32_t base, std::size_t size, bool writable,
             throw std::invalid_argument("Memory regions must not overlap.");
     }
 
-    regions_.push_back(Region{base, std::vector<std::uint8_t>(size, 0),
+    regions_.push_back(Region{base, std::vector<std::uint8_t>(size, initial_value),
                               writable, name});
 }
 
