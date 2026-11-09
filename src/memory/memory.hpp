@@ -16,6 +16,8 @@ public:
 
     void map(std::uint32_t base, std::size_t size, bool writable,
              const std::string& name);
+    void map_filled(std::uint32_t base, std::size_t size, bool writable,
+                    const std::string& name, std::uint8_t initial_value);
     std::uint8_t read8(std::uint32_t address) const;
     std::uint32_t read32le(std::uint32_t address) const;
     void write8(std::uint32_t address, std::uint8_t value);
