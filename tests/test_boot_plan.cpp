@@ -44,6 +44,15 @@ int main(){
   require(memory.read32le(0x60000000u)==0u,"STUB initial value was not applied");
   memory.write32le(0x60000000u,0x12345678u);
   require(memory.read32le(0x60000000u)==0x12345678u,"STUB register backing did not retain writes");
+  // The ARM interpreter must be able to load from and store to a mapped stub.
+  memory.write32le(0x60000000u,0x41u);
+  memory.write32le(0x1030u,0xE5901000u); // LDR r1,[r0]
+  memory.write32le(0x1034u,0xE2811001u); // ADD r1,r1,#1
+  memory.write32le(0x1038u,0xE5801000u); // STR r1,[r0]
+  CPU stub_cpu(memory);stub_cpu.reset(0x1030u);stub_cpu.set_register(0,0x60000000u);
+  stub_cpu.step();stub_cpu.step();stub_cpu.step();
+  require(memory.read32le(0x60000000u)==0x42u,
+          "CPU could not execute a load/add/store sequence against a memory stub");
   CPU cpu(memory);cpu.reset(p.entry);
   for(const auto& reg:p.initial_registers)cpu.set_register(reg.index,reg.value);
   cpu.set_register(13,p.stack_pointer);
