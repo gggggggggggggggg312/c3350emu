@@ -16,6 +16,7 @@ struct BootSegment {
 enum class MemoryInitKind { Copy, Zero };
 struct MemoryInitOperation { MemoryInitKind kind = MemoryInitKind::Zero; std::uint32_t source = 0; std::uint32_t destination = 0; std::size_t length = 0; };
 struct InitialRegister { unsigned index = 0; std::uint32_t value = 0; };
+struct MemoryStub { std::uint32_t base = 0; std::size_t size = 0; std::uint8_t initial_value = 0; };
 struct BootPlan {
     std::uint32_t ram_base = 0;
     std::size_t ram_size = 0;
@@ -24,6 +25,7 @@ struct BootPlan {
     std::filesystem::path trace_file;
     std::vector<std::uint32_t> breakpoints;
     std::vector<BootSegment> segments;
+    std::vector<MemoryStub> memory_stubs;
     std::vector<MemoryInitOperation> memory_initialization;
     std::uint32_t stack_pointer = 0;
     bool has_stack_pointer = false;
