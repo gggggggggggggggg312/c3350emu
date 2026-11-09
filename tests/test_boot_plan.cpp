@@ -37,6 +37,13 @@ int main(){
   require(memory.read32le(0x1024u)==0u,"ZERO did not clear BSS-like memory");
   require(p.has_stack_pointer&&p.stack_pointer==0x1100u,"STACK directive failed");
   require(p.initial_registers.size()==2,"REG directives failed");
+  require(p.memory_stubs.size()==1&&p.memory_stubs[0].base==0x60000000u,
+          "STUB directive failed");
+  memory.map_filled(p.memory_stubs[0].base,p.memory_stubs[0].size,true,
+                    "test MMIO stub",p.memory_stubs[0].initial_value);
+  require(memory.read32le(0x60000000u)==0u,"STUB initial value was not applied");
+  memory.write32le(0x60000000u,0x12345678u);
+  require(memory.read32le(0x60000000u)==0x12345678u,"STUB register backing did not retain writes");
   CPU cpu(memory);cpu.reset(p.entry);
   for(const auto& reg:p.initial_registers)cpu.set_register(reg.index,reg.value);
   cpu.set_register(13,p.stack_pointer);
