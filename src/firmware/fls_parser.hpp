@@ -45,6 +45,12 @@ public:
         std::size_t bytes_to_compare = 4096,
         std::uintmax_t max_file_size = 256ULL * 1024ULL * 1024ULL);
 
+    // Correlates candidate directory records across every .fls file in a set.
+    // This is a cross-sample format investigation tool, not a validated decoder.
+    static std::string analyze_firmware_set(
+        const std::filesystem::path& directory,
+        std::uintmax_t max_file_size = 256ULL * 1024ULL * 1024ULL);
+
     // Loads an explicitly selected byte range into already-mapped writable RAM.
     // This is a raw segment staging operation, not an automatic FLS decoder.
     static LoadResult load_raw_segment(
