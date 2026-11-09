@@ -430,6 +430,15 @@ int main(int argc, char** argv) {
             return 1;
         }
     }
+    if (argc == 3 && std::string(argv[1]) == "--analyze-firmware-set") {
+        try {
+            std::cout << firmware::FlsParser::analyze_firmware_set(argv[2]);
+            return 0;
+        } catch (const std::exception& e) {
+            std::cerr << "Firmware-set analysis failed: " << e.what() << "\\n";
+            return 1;
+        }
+    }
     if (argc == 3 && std::string(argv[1]) == "--inspect-fls-directory") {
         try {
             std::cout << firmware::FlsParser::inspect_directory(argv[2]);
