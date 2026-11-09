@@ -84,6 +84,16 @@ BootPlan parse_boot_plan(const std::filesystem::path& path) {
                 std::filesystem::path target(file);
                 if(target.is_relative())target=base_dir/target;
                 plan.trace_file=target.lexically_normal();
+            } else if(command=="STUB") {
+                std::string base,size,fill,extra;
+                if(!(row>>base>>size>>fill)||row>>extra)
+                    throw std::runtime_error("STUB requires: base size initial-byte");
+                const auto b=number(base,"stub base"),n=number(size,"stub size"),v=number(fill,"stub initial byte");
+                if(b>0xffffffffu||n==0||n>std::numeric_limits<std::size_t>::max()||
+                   b+n>(std::uint64_t{1}<<32)||v>0xffu)
+                    throw std::runtime_error("STUB range or initial byte is invalid");
+                plan.memory_stubs.push_back({static_cast<std::uint32_t>(b),
+                    static_cast<std::size_t>(n),static_cast<std::uint8_t>(v)});
             } else if(command=="SEGMENT") {
                 std::string file,offset,length,load,extra;
                 if(!(row>>std::quoted(file)>>offset>>length>>load)||row>>extra)
@@ -123,6 +133,21 @@ BootPlan parse_boot_plan(const std::filesystem::path& path) {
     if(!entry_covered)throw std::runtime_error("Entry point is not inside any loaded segment");
     if(plan.has_stack_pointer && (plan.stack_pointer<plan.ram_base || static_cast<std::uint64_t>(plan.stack_pointer)>ram_end))
         throw std::runtime_error("Stack pointer must be within configured RAM (the end address is allowed)");
+    for(std::size_t i=0;i<plan.memory_stubs.size();++i) {
+        const auto& stub=plan.memory_stubs[i];
+        const std::uint64_t end=static_cast<std::uint64_t>(stub.base)+stub.size;
+        for(const auto& segment:plan.segments) {
+            const auto segment_end=static_cast<std::uint64_t>(segment.load_address)+segment.length;
+            if(stub.base<segment_end&&segment.load_address<end)
+                throw std::runtime_error("A STUB region overlaps a loaded firmware segment");
+        }
+        for(std::size_t j=0;j<i;++j) {
+            const auto& previous=plan.memory_stubs[j];
+            const auto previous_end=static_cast<std::uint64_t>(previous.base)+previous.size;
+            if(stub.base<previous_end&&previous.base<end)
+                throw std::runtime_error("STUB regions overlap");
+        }
+    }
     for(const auto& op:plan.memory_initialization) {
         const auto destination_end=static_cast<std::uint64_t>(op.destination)+op.length;
         if(op.destination<plan.ram_base||destination_end>ram_end)
