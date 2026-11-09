@@ -177,6 +177,105 @@ std::string FlsParser::compare_headers_in_directory(
 }
 
 
+
+std::string FlsParser::analyze_firmware_set(
+    const std::filesystem::path& directory, std::uintmax_t max_file_size) {
+    if (!std::filesystem::exists(directory) ||
+        !std::filesystem::is_directory(directory))
+        throw std::runtime_error("Firmware-set path is not a directory: " + directory.string());
+
+    std::vector<std::filesystem::path> paths;
+    for (const auto& entry : std::filesystem::directory_iterator(directory))
+        if (entry.is_regular_file() && entry.path().extension() == ".fls")
+            paths.push_back(entry.path());
+    std::sort(paths.begin(), paths.end());
+    if (paths.empty()) throw std::runtime_error("No .fls files found in firmware directory.");
+
+    struct Sample { std::filesystem::path path; std::vector<std::uint8_t> bytes; };
+    std::vector<Sample> samples;
+    samples.reserve(paths.size());
+    for (const auto& path : paths)
+        samples.push_back({path, read_all(path, max_file_size)});
+
+    std::ostringstream out;
+    out << "C3350EMU FLS FIRMWARE-SET CORRELATION REPORT\n"
+        << "============================================\n"
+        << "Directory: " << directory.string() << "\n"
+        << "Files: " << samples.size() << "\n\n";
+    for (const auto& sample : samples)
+        out << sample.path.filename().string() << "  size=" << sample.bytes.size()
+            << " bytes  CRC32=" << hex_u64(crc32(sample.bytes), 8) << "\n";
+
+    std::size_t common = samples.front().bytes.size();
+    for (std::size_t n = 1; n < samples.size(); ++n) {
+        common = std::min(common, samples[n].bytes.size());
+        std::size_t i = 0;
+        while (i < common && samples.front().bytes[i] == samples[n].bytes[i]) ++i;
+        common = i;
+    }
+    out << "\n[COMMON PREFIX]\n"
+        << "All files share " << common << " initial bytes (0x"
+        << std::hex << common << std::dec << ").\n";
+
+    out << "\n[CANDIDATE 32-BYTE RECORDS]\n"
+        << "Search window: aligned records from 0xE0 to 0x1000.\n"
+        << "A record is reported only when every sample has the same valid name at that slot.\n";
+    std::size_t records = 0;
+    const std::size_t scan_end = std::min<std::size_t>(0x1000, samples.front().bytes.size());
+    for (std::size_t offset = 0xE0; offset + 32 <= scan_end; offset += 0x20) {
+        auto read_name = [offset](const std::vector<std::uint8_t>& data) {
+            std::string name;
+            bool terminated = false;
+            for (std::size_t j = 0; j < 12; ++j) {
+                const auto ch = data[offset + 4 + j];
+                if (ch == 0) { terminated = true; continue; }
+                if (terminated || !((ch >= 'A' && ch <= 'Z') ||
+                                    (ch >= '0' && ch <= '9') || ch == '_'))
+                    return std::string{};
+                name.push_back(static_cast<char>(ch));
+            }
+            return name;
+        };
+        const auto name = read_name(samples.front().bytes);
+        if (name.empty()) continue;
+        bool consistent = true;
+        for (std::size_t n = 1; n < samples.size(); ++n) {
+            if (samples[n].bytes.size() < offset + 32 ||
+                read_name(samples[n].bytes) != name) {
+                consistent = false;
+                break;
+            }
+        }
+        if (!consistent) continue;
+        ++records;
+        out << "\nRecord @ " << hex_u64(offset, 8) << " name=" << name << "\n";
+        for (std::size_t word = 0; word < 8; ++word) {
+            const auto pos = offset + word * 4;
+            out << "  W" << word << ":";
+            for (const auto& sample : samples) {
+                const auto& d = sample.bytes;
+                const std::uint32_t value =
+                    static_cast<std::uint32_t>(d[pos]) |
+                    (static_cast<std::uint32_t>(d[pos + 1]) << 8) |
+                    (static_cast<std::uint32_t>(d[pos + 2]) << 16) |
+                    (static_cast<std::uint32_t>(d[pos + 3]) << 24);
+                out << " " << sample.path.filename().string() << "=" << hex_u64(value, 8);
+            }
+            out << "\n";
+        }
+    }
+    out << "\nConsistent candidate record slots: " << records << "\n"
+        << "\n[INTERPRETATION]\n"
+        << "- This correlates repeated structures across the supplied firmware set.\n"
+        << "- W0-W7 are raw little-endian observations; no field is assigned a load address,\n"
+        << "  payload offset, length, checksum, or entry-point meaning.\n"
+        << "- A common prefix and matching record names do not prove the Samsung FLS schema.\n"
+        << "- Automatic extraction/loading is intentionally not enabled until field semantics\n"
+        << "  are validated against independent samples or authoritative format evidence.\n";
+    return out.str();
+}
+
+
 LoadResult FlsParser::load_raw_segment(
     const std::filesystem::path& path, std::uint64_t file_offset,
     std::size_t length, std::uint32_t load_address, Memory& memory,
