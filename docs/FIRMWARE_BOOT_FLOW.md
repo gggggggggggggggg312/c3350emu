@@ -65,3 +65,15 @@ Boot plans support ordered `COPY source destination length` and `ZERO destinatio
 ## Initial stack and register state
 
 `STACK address` initializes R13/SP after CPU reset and before the first instruction. The address must be inside configured RAM or exactly its end (for a downward-growing stack). `REG index value` initializes one of R0-R14; duplicate assignments and R15 are rejected. These directives let a staged boot handoff model establish stack and argument registers without pretending the values are known C3350 reset state.
+
+
+## Experimental memory stubs for CPU bring-up
+
+Boot plans may declare `STUB <base> <size> <initial-byte>`. The runner maps a
+separate, writable byte-backed region at that address, initialized to the selected
+byte value. This is a deterministic stand-in for an otherwise-unmapped address
+window, allowing instruction flow to continue while peripheral behavior is being
+investigated. Reads return stored bytes and writes update them. It is **not** a
+Samsung peripheral model: register side effects, timing, interrupts, DMA, and
+hardware-specific reset values are not implemented. Keep each stub range narrow
+and evidence-based; do not label it a real C3350 memory map.
