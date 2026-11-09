@@ -120,6 +120,34 @@ int main() {
                 "Header comparison did not report the first differing byte.");
         std::filesystem::remove_all(compare_dir);
 
+
+        // Cross-sample correlation preserves raw words without inventing field meanings.
+        const auto set_dir = dir / "c3350emu_set_test";
+        std::filesystem::create_directories(set_dir);
+        for (const auto& file_name : {"psi.fls", "slb.fls"}) {
+            std::vector<unsigned char> sample(0x140, 0);
+            const std::string record_name = "CODE";
+            for (std::size_t i = 0; i < record_name.size(); ++i)
+                sample[0xE4 + i] = static_cast<unsigned char>(record_name[i]);
+            sample[0xF0] = 0x78; sample[0xF1] = 0x56;
+            sample[0xF2] = 0x34; sample[0xF3] = 0x12;
+            std::ofstream out(set_dir / file_name, std::ios::binary);
+            require(static_cast<bool>(out), "Could not create firmware-set fixture.");
+            out.write(reinterpret_cast<const char*>(sample.data()),
+                      static_cast<std::streamsize>(sample.size()));
+            require(static_cast<bool>(out), "Could not write firmware-set fixture.");
+        }
+        const auto set_report = firmware::FlsParser::analyze_firmware_set(set_dir);
+        require(set_report.find("psi.fls") != std::string::npos &&
+                set_report.find("slb.fls") != std::string::npos,
+                "Firmware-set report omitted input files.");
+        require(set_report.find("name=CODE") != std::string::npos &&
+                set_report.find("psi.fls=0x12345678") != std::string::npos,
+                "Firmware-set report did not correlate candidate record fields.");
+        require(set_report.find("not assigned a load address") != std::string::npos,
+                "Firmware-set report omitted its field-semantics warning.");
+        std::filesystem::remove_all(set_dir);
+
         std::filesystem::remove(report);
         std::filesystem::remove(path);
 
