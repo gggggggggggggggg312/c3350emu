@@ -1,0 +1,33 @@
+# Experimental LCD and firmware patching
+
+C3350EMU now supports a memory-mapped device interface and an experimental 128x128 RGB565 LCD controller. This is a development device so the CPU can perform real MMIO reads and writes and the Windows GUI can display the framebuffer.
+
+**Important:** the register layout and base address are not verified GT-C3350 hardware facts. Choose a non-overlapping base in the boot plan. Do not assume the original phone firmware already knows this interface.
+
+## Boot-plan directives
+
+```
+LCD 0x70000000
+PATCH 0x10001000 0010A0E3 0120A0E3
+```
+
+- `LCD base` maps the experimental 0x100-byte controller register window.
+- `PATCH address expected-hex replacement-hex` replaces bytes in emulated RAM after segments and memory initialization have loaded. Both byte strings must have equal, non-zero lengths.
+- Patch bytes are written in memory order. The expected bytes must match exactly or boot stops with a patch-precondition error.
+- Patches affect the emulated memory image only. Original .fls/.bin files are never overwritten.
+
+## LCD register window
+
+| Offset | Access | Meaning |
+| --- | --- | --- |
+| 0x00 | R/W | Control latch (currently stored; no panel power/timing behavior yet) |
+| 0x04 | R | Width in low 16 bits (128), height in high 16 bits (128) |
+| 0x08 | R/W | Framebuffer pixel index, 0 through 16383 |
+| 0x0C | R/W | RGB565 pixel data; writing the upper byte commits one pixel and advances the index |
+| 0x10 | R | Ready bit (bit 0 = 1) |
+
+The framebuffer is 128x128 pixels. RGB565 uses 5 red bits, 6 green bits, and 5 blue bits. The CPU can write the pixel index at base+0x08 and a 16-bit pixel at base+0x0C. The GUI displays the resulting framebuffer after execution stops.
+
+## What this does not emulate yet
+
+This is not yet the original C3350 LCD controller. It does not implement the phone's actual controller ID, command/data protocol, timing, interrupts, DMA, panel initialization sequence, or physical pin behavior. Those need evidence from the real device or firmware. The generic MMIO plumbing is now in place so the correct controller can replace this development interface later.
