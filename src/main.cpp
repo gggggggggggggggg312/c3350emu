@@ -1,4 +1,4 @@
-#include "cpu/cpu.hpp"
+#include "cpu/cpu.hpp"\n#ifdef C3350EMU_HAS_UNICORN\n#include "cpu/unicorn_cpu.hpp"\n#endif
 #include "firmware/fls_parser.hpp"
 #include "firmware/boot_plan.hpp"
 #include "platform/platform.hpp"
@@ -53,7 +53,43 @@ static std::uint64_t parse_number(const char* value, const char* label) {
         throw std::runtime_error(std::string("Invalid ") + label + ".");
     return parsed;
 }
-int main(int argc, char** argv) {
+int main(int argc, char** argv) {\n#ifdef C3350EMU_HAS_UNICORN
+    if (argc == 7 && std::string(argv[1]) == "--run-unicorn-raw") {
+        try {
+            const auto ram_base = parse_number(argv[3], "RAM base");
+            const auto ram_size = parse_number(argv[4], "RAM size");
+            const auto entry = parse_number(argv[5], "entry point");
+            const auto limit = parse_number(argv[6], "instruction limit");
+            if (ram_base > 0xffffffffu || ram_size > 0xffffffffu ||
+                entry > 0xffffffffu || !ram_size || !limit)
+                throw std::runtime_error("RAM, entry, or instruction limit is out of range.");
+            std::ifstream input(argv[2], std::ios::binary | std::ios::ate);
+            if (!input) throw std::runtime_error("Cannot open image.");
+            const auto end = input.tellg();
+            if (end <= 0) throw std::runtime_error("Image is empty.");
+            std::vector<std::uint8_t> image(static_cast<std::size_t>(end));
+            input.seekg(0);
+            if (!input.read(reinterpret_cast<char*>(image.data()), static_cast<std::streamsize>(image.size())))
+                throw std::runtime_error("Could not read complete image.");
+            const auto result = cpu::run_unicorn_image(image,
+                static_cast<std::uint32_t>(ram_base), static_cast<std::uint32_t>(ram_size),
+                static_cast<std::uint32_t>(entry), limit);
+            std::cout << "Unicorn ARM execution\nImage bytes: " << image.size()
+                      << "\nInstructions requested: " << limit
+                      << "\nStop: " << result.stop_reason << "\nPC=0x" << std::hex << result.pc
+                      << " CPSR=0x" << result.cpsr << std::dec << "\n";
+            for (unsigned i=0;i<16;++i)
+                std::cout << "R" << i << "=0x" << std::hex << result.registers[i]
+                          << ((i%4==3)?"\n":"  ");
+            return 0;
+        } catch (const std::exception& error) {
+            std::cerr << "Unicorn execution failed: " << error.what() << "\n";
+            return 1;
+        }
+    }
+#endif
+
+
     if (argc == 2 && std::string(argv[1]) == "--help") { print_help(argv[0]); return 0; }
     if (argc == 2 && std::string(argv[1]) == "--platform-info") { print_platform_info(); return 0; }
     if (argc == 2 && std::string(argv[1]) == "--lpddr1-sequence") {
