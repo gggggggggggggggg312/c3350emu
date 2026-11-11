@@ -1,0 +1,4 @@
+{
+  "description": "Emulator-specific C3350 PSI patches. Add only patches whose instruction purpose has been verified.",
+  "patches": []
+}
