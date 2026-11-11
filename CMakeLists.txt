@@ -11,6 +11,7 @@ add_library(c3350_core
     src/firmware/fls_parser.cpp
     src/firmware/boot_plan.cpp
     src/memory/memory.cpp
+    src/devices/lcd.cpp
     src/memory/lpddr1.cpp
     src/platform/platform.cpp
     src/platform/battery.cpp
