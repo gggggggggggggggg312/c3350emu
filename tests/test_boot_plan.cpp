@@ -2,6 +2,7 @@
 #include "firmware/fls_parser.hpp"
 #include "memory/memory.hpp"
 #include "cpu/cpu.hpp"
+#include "devices/lcd.hpp"
 #include <filesystem>
 #include <fstream>
 #include <stdexcept>
@@ -25,18 +26,19 @@ int main(){
    <<"SEGMENT \"stage_a.fls\" 0 8 0x1000\n"
    <<"SEGMENT \"stage_b.fls\" 0 4 0x1010\n"
    <<"ZERO 0x1020 4\nCOPY 0x1010 0x1020 4\nZERO 0x1024 4\n"
-   <<"STACK 0x1100\nREG 0 0x1234\nREG 1 0x5678\n";}
+   <<"STACK 0x1100\nREG 0 0x1234\nREG 1 0x5678\n"
+   <<"LCD 0x2000\nPATCH 0x1028 00000000 78563412\n";}
   const auto p=firmware::parse_boot_plan(plan_path);
   require(p.segments.size()==2,"Plan did not parse both firmware regions");
   require(p.breakpoints.size()==1&&p.breakpoints[0]==0x1014u,"Breakpoint directive failed");
   Memory memory;memory.map(p.ram_base,p.ram_size,true,"boot-plan test RAM");
   for(const auto& s:p.segments)
    firmware::FlsParser::load_raw_segment(s.file,s.offset,s.length,s.load_address,memory);
-  firmware::apply_memory_initialization(p,memory);
+  firmware::apply_memory_initialization(p,memory);\n  firmware::apply_firmware_patches(p,memory);\n  require(memory.read32le(0x1028u)==0x12345678u,"Checked firmware patch was not applied");\n  LcdController lcd;lcd.attach(memory,p.lcd_base);\n  memory.write32le(p.lcd_base+0x08u,0u);memory.write32le(p.lcd_base+0x0cu,0x0000f800u);\n  require(lcd.pixels_argb()[0]==0xffff0000u,"LCD RGB565 framebuffer did not receive a red pixel");
   require(memory.read32le(0x1020u)==0xE3A01063u,"COPY did not stage initialized data");
   require(memory.read32le(0x1024u)==0u,"ZERO did not clear BSS-like memory");
   require(p.has_stack_pointer&&p.stack_pointer==0x1100u,"STACK directive failed");
-  require(p.initial_registers.size()==2,"REG directives failed");
+  require(p.initial_registers.size()==2,"REG directives failed");\n  require(p.has_lcd&&p.lcd_base==0x2000u,"LCD directive failed");\n  require(p.patches.size()==1,"PATCH directive failed");
   require(p.memory_stubs.size()==1&&p.memory_stubs[0].base==0x60000000u,
           "STUB directive failed");
   memory.map_filled(p.memory_stubs[0].base,p.memory_stubs[0].size,true,
