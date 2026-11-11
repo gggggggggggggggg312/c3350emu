@@ -21,24 +21,46 @@ int main(){
  try{
   {std::ofstream out(a,std::ios::binary);write_word(out,0xE3A0002Au);write_word(out,0xEA000002u);}
   {std::ofstream out(b,std::ios::binary);write_word(out,0xE3A01063u);}
-  {std::ofstream out(plan_path);out<<"# Two loaded regions, one shared address space\n"
-   <<"RAM 0x1000 0x100\nENTRY 0x1000\nLIMIT 3\nBREAK 0x1014\n"
-   <<"SEGMENT \"stage_a.fls\" 0 8 0x1000\n"
-   <<"SEGMENT \"stage_b.fls\" 0 4 0x1010\n"
-   <<"ZERO 0x1020 4\nCOPY 0x1010 0x1020 4\nZERO 0x1024 4\n"
-   <<"STACK 0x1100\nREG 0 0x1234\nREG 1 0x5678\n"
-   <<"LCD 0x2000\nPATCH 0x1028 00000000 78563412\n";}
+  {std::ofstream out(plan_path);out<<"# Two loaded regions, one shared address space
+"
+   <<"RAM 0x1000 0x100
+ENTRY 0x1000
+LIMIT 3
+BREAK 0x1014
+"
+   <<"SEGMENT \"stage_a.fls\" 0 8 0x1000
+"
+   <<"SEGMENT \"stage_b.fls\" 0 4 0x1010
+"
+   <<"ZERO 0x1020 4
+COPY 0x1010 0x1020 4
+ZERO 0x1024 4
+"
+   <<"STACK 0x1100
+REG 0 0x1234
+REG 1 0x5678
+"
+   <<"LCD 0x2000
+PATCH 0x1028 00000000 78563412
+";}
   const auto p=firmware::parse_boot_plan(plan_path);
   require(p.segments.size()==2,"Plan did not parse both firmware regions");
   require(p.breakpoints.size()==1&&p.breakpoints[0]==0x1014u,"Breakpoint directive failed");
   Memory memory;memory.map(p.ram_base,p.ram_size,true,"boot-plan test RAM");
   for(const auto& s:p.segments)
    firmware::FlsParser::load_raw_segment(s.file,s.offset,s.length,s.load_address,memory);
-  firmware::apply_memory_initialization(p,memory);\n  firmware::apply_firmware_patches(p,memory);\n  require(memory.read32le(0x1028u)==0x12345678u,"Checked firmware patch was not applied");\n  LcdController lcd;lcd.attach(memory,p.lcd_base);\n  memory.write32le(p.lcd_base+0x08u,0u);memory.write32le(p.lcd_base+0x0cu,0x0000f800u);\n  require(lcd.pixels_argb()[0]==0xffff0000u,"LCD RGB565 framebuffer did not receive a red pixel");
+  firmware::apply_memory_initialization(p,memory);
+  firmware::apply_firmware_patches(p,memory);
+  require(memory.read32le(0x1028u)==0x12345678u,"Checked firmware patch was not applied");
+  LcdController lcd;lcd.attach(memory,p.lcd_base);
+  memory.write32le(p.lcd_base+0x08u,0u);memory.write32le(p.lcd_base+0x0cu,0x0000f800u);
+  require(lcd.pixels_argb()[0]==0xffff0000u,"LCD RGB565 framebuffer did not receive a red pixel");
   require(memory.read32le(0x1020u)==0xE3A01063u,"COPY did not stage initialized data");
   require(memory.read32le(0x1024u)==0u,"ZERO did not clear BSS-like memory");
   require(p.has_stack_pointer&&p.stack_pointer==0x1100u,"STACK directive failed");
-  require(p.initial_registers.size()==2,"REG directives failed");\n  require(p.has_lcd&&p.lcd_base==0x2000u,"LCD directive failed");\n  require(p.patches.size()==1,"PATCH directive failed");
+  require(p.initial_registers.size()==2,"REG directives failed");
+  require(p.has_lcd&&p.lcd_base==0x2000u,"LCD directive failed");
+  require(p.patches.size()==1,"PATCH directive failed");
   require(p.memory_stubs.size()==1&&p.memory_stubs[0].base==0x60000000u,
           "STUB directive failed");
   memory.map_filled(p.memory_stubs[0].base,p.memory_stubs[0].size,true,
@@ -65,8 +87,13 @@ int main(){
   require(cpu.get_register(1)==99,"Branch handoff to second loaded region failed");
   require(cpu.getPC()==0x1014,"CPU did not reach the end of the second region");
   bool overlap_rejected=false;
-  {std::ofstream out(plan_path);out<<"RAM 0x1000 0x100\nENTRY 0x1000\nLIMIT 1\n"
-   <<"SEGMENT \"stage_a.fls\" 0 8 0x1000\nSEGMENT \"stage_b.fls\" 0 4 0x1004\n";}
+  {std::ofstream out(plan_path);out<<"RAM 0x1000 0x100
+ENTRY 0x1000
+LIMIT 1
+"
+   <<"SEGMENT \"stage_a.fls\" 0 8 0x1000
+SEGMENT \"stage_b.fls\" 0 4 0x1004
+";}
   try{(void)firmware::parse_boot_plan(plan_path);}catch(const std::runtime_error&){overlap_rejected=true;}
   require(overlap_rejected,"Overlapping load regions were not rejected");
   std::filesystem::remove_all(dir);return 0;
