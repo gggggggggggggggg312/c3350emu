@@ -6,7 +6,7 @@
 class LcdController {
 public:
  static constexpr std::uint32_t RegisterBytes=0x100;
- static constexpr std::size_t Width=128,Height=128,PixelCount=Width*Height;
+ static constexpr std::size_t Width=240,Height=320,PixelCount=Width*Height;
  LcdController();
  void attach(Memory&,std::uint32_t base);
  std::uint32_t base()const noexcept{return base_;}
