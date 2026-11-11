@@ -2,7 +2,6 @@
 #include "memory/memory.hpp"
 #include <fstream>
 #include <cctype>
-#include <cctype>
 #include <iomanip>
 #include <limits>
 #include <sstream>
