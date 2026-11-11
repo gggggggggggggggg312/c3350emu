@@ -1,6 +1,7 @@
 #include "memory.hpp"
 #include <algorithm>
 #include <stdexcept>
+#include <utility>
 void Memory::map(std::uint32_t b,std::size_t s,bool w,const std::string& n){map_filled(b,s,w,n,0);}
 void Memory::map_filled(std::uint32_t b,std::size_t s,bool w,const std::string& n,std::uint8_t v){
  if(!s)throw std::invalid_argument("Memory region cannot be empty.");const std::uint64_t e=std::uint64_t(b)+s;if(e>(std::uint64_t{1}<<32))throw std::invalid_argument("Memory region exceeds the 32-bit address space.");
