@@ -1,6 +1,8 @@
 #include "boot_plan.hpp"
 #include "memory/memory.hpp"
-#include <fstream>\n#include <cctype>
+#include <fstream>
+#include <cctype>
+#include <cctype>
 #include <iomanip>
 #include <limits>
 #include <sstream>
@@ -9,6 +11,16 @@
 
 namespace firmware {
 namespace {
+std::vector<std::uint8_t> hex_bytes(const std::string& value) {
+    if (value.empty() || value.size()%2) throw std::runtime_error("Patch bytes must be even-length hexadecimal");
+    std::vector<std::uint8_t> bytes;
+    for (std::size_t i=0;i<value.size();i+=2) {
+        unsigned v=0; std::istringstream in(value.substr(i,2)); in>>std::hex>>v;
+        if (!in || !in.eof() || v>255) throw std::runtime_error("Invalid patch hex bytes");
+        bytes.push_back(static_cast<std::uint8_t>(v));
+    }
+    return bytes;
+}
 std::uint64_t number(const std::string& value, const char* label) {
     if (value.empty() || value.front() == '-') throw std::runtime_error(std::string("Invalid ") + label);
     std::size_t used = 0;
@@ -202,7 +214,6 @@ void apply_memory_initialization(const BootPlan& plan, Memory& memory) {
         }
     }
 }
-}
 void apply_firmware_patches(const BootPlan& plan, Memory& memory) {
     for (const auto& patch : plan.patches) {
         for (std::size_t i=0;i<patch.expected.size();++i) {
@@ -214,3 +225,5 @@ void apply_firmware_patches(const BootPlan& plan, Memory& memory) {
     }
 }
 
+
+}
