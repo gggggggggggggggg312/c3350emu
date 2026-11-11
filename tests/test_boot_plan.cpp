@@ -37,8 +37,8 @@ int main(){
   firmware::apply_firmware_patches(p,memory);
   require(memory.read32le(0x1028u)==0x12345678u,"Checked firmware patch was not applied");
   LcdController lcd;lcd.attach(memory,p.lcd_base);
-  memory.write32le(p.lcd_base+0x08u,0u);memory.write32le(p.lcd_base+0x0cu,0x0000f800u);
-  require(lcd.pixels_argb()[0]==0xffff0000u,"LCD RGB565 framebuffer did not receive a red pixel");
+  memory.write32le(p.lcd_base+0x08u,0u);memory.write32le(p.lcd_base+0x0cu,0x0003f000u);
+  require(lcd.pixels_argb()[0]==0xffff0000u,"LCD RGB666 framebuffer did not receive a red pixel");
   require(memory.read32le(0x1020u)==0xE3A01063u,"COPY did not stage initialized data");
   require(memory.read32le(0x1024u)==0u,"ZERO did not clear BSS-like memory");
   require(p.has_stack_pointer&&p.stack_pointer==0x1100u,"STACK directive failed");
