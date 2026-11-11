@@ -11,10 +11,10 @@ void LcdController::write_byte(std::uint32_t o,std::uint8_t v){
  const auto reg=o&~3u,shift=(o&3u)*8u;
  if(reg==0x00)control_=(control_&~(0xffu<<shift))|(std::uint32_t(v)<<shift);
  else if(reg==0x08){pixel_index_=(pixel_index_&~(0xffu<<shift))|(std::uint32_t(v)<<shift);if(pixel_index_>=PixelCount)pixel_index_=0;}
- else if(reg==0x0c){pixel_latch_=static_cast<std::uint16_t>((pixel_latch_&~(0xffu<<shift))|(std::uint16_t(v)<<shift));if(shift==8u){framebuffer_[pixel_index_]=pixel_latch_;pixel_index_=(pixel_index_+1u)%PixelCount;}}
+ else if(reg==0x0c){pixel_latch_=(pixel_latch_&~(0xffu<<shift))|(std::uint32_t(v)<<shift);if(shift==24u){framebuffer_[pixel_index_]=pixel_latch_&0x3ffffu;pixel_index_=(pixel_index_+1u)%PixelCount;}}
 }
 std::vector<std::uint32_t> LcdController::pixels_argb()const{
  std::vector<std::uint32_t> out;out.reserve(PixelCount);
- for(auto p:framebuffer_){const auto r=(p>>11)&31u,g=(p>>5)&63u,b=p&31u;out.push_back(0xff000000u|((r*255u/31u)<<16)|((g*255u/63u)<<8)|(b*255u/31u));}
+ for(auto p:framebuffer_){const auto r=(p>>12)&63u,g=(p>>6)&63u,b=p&63u;out.push_back(0xff000000u|((r*255u/63u)<<16)|((g*255u/63u)<<8)|(b*255u/63u));}
  return out;
 }
