@@ -1,6 +1,6 @@
 #include "lcd.hpp"
 LcdController::LcdController():framebuffer_(PixelCount,0){}
-void LcdController::attach(Memory& m,std::uint32_t b){base_=b;m.map_device(b,RegisterBytes,"experimental RGB565 LCD controller",[this](std::uint32_t o){return read_byte(o);},[this](std::uint32_t o,std::uint8_t v){write_byte(o,v);});}
+void LcdController::attach(Memory& m,std::uint32_t b){base_=b;m.map_device(b,RegisterBytes,"experimental RGB666 LCD controller",[this](std::uint32_t o){return read_byte(o);},[this](std::uint32_t o,std::uint8_t v){write_byte(o,v);});}
 std::uint8_t LcdController::read_byte(std::uint32_t o)const{
  const auto reg=o&~3u;std::uint32_t v=0;
  if(reg==0x00)v=control_;else if(reg==0x04)v=static_cast<std::uint32_t>(Width)|(static_cast<std::uint32_t>(Height)<<16);
