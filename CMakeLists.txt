@@ -1,13 +1,13 @@
 cmake_minimum_required(VERSION 3.16)
 
-project(C3350EMU LANGUAGES CXX)
+project(C3350EMU LANGUAGES C CXX)\n\ninclude(FetchContent)\noption(C3350EMU_USE_UNICORN "Use Unicorn Engine for ARM execution" ON)\nif(C3350EMU_USE_UNICORN)\n    FetchContent_Declare(unicorn\n        GIT_REPOSITORY https://github.com/unicorn-engine/unicorn.git\n        GIT_TAG 2.1.4\n        GIT_SHALLOW TRUE\n    )\n    FetchContent_MakeAvailable(unicorn)\nendif()
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
 add_library(c3350_core
-    src/cpu/cpu.cpp
+    src/cpu/cpu.cpp\n    src/cpu/unicorn_cpu.cpp
     src/firmware/fls_parser.cpp
     src/firmware/boot_plan.cpp
     src/memory/memory.cpp
@@ -61,3 +61,4 @@ if(BUILD_TESTING)
     target_link_libraries(test_cpu PRIVATE c3350_core)
     add_test(NAME cpu_tests COMMAND test_cpu)
 endif()
+\nif(C3350EMU_USE_UNICORN)\n    target_link_libraries(c3350_core PUBLIC unicorn)\n    target_compile_definitions(c3350_core PUBLIC C3350EMU_HAS_UNICORN=1)\nendif()\n
