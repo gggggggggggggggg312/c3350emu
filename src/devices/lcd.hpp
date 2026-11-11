@@ -15,6 +15,6 @@ private:
  std::uint8_t read_byte(std::uint32_t)const;
  void write_byte(std::uint32_t,std::uint8_t);
  std::uint32_t base_=0,pixel_index_=0,control_=0;
- std::uint16_t pixel_latch_=0;
- std::vector<std::uint16_t> framebuffer_;
+ std::uint32_t pixel_latch_=0;
+ std::vector<std::uint32_t> framebuffer_;
 };
