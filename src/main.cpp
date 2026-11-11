@@ -4,6 +4,7 @@
 #include "platform/platform.hpp"
 #include "platform/battery.hpp"
 #include "memory/memory.hpp"
+#include "devices/lcd.hpp"
 #include "memory/lpddr1.hpp"
 
 #include <exception>
@@ -101,6 +102,8 @@ int main(int argc, char** argv) {
             memory.map(plan.ram_base, plan.ram_size, true, "boot-plan shared RAM");
             for(const auto& stub:plan.memory_stubs)
                 memory.map_filled(stub.base,stub.size,true,"experimental memory stub",stub.initial_value);
+            LcdController lcd;
+            if(plan.has_lcd) lcd.attach(memory,plan.lcd_base);
             std::cout << "C3350EMU MULTI-REGION FIRMWARE EXECUTION\\n"
                       << "RAM: 0x" << std::hex << plan.ram_base
                       << " - 0x" << (static_cast<std::uint64_t>(plan.ram_base)+plan.ram_size-1u)
@@ -117,7 +120,10 @@ int main(int argc, char** argv) {
                           << " CRC32=0x" << loaded.crc32 << "\\n";
             }
             firmware::apply_memory_initialization(plan,memory);
-            std::cout << "Runtime memory operations applied: " << std::dec << plan.memory_initialization.size() << "\n";
+            firmware::apply_firmware_patches(plan,memory);
+            std::cout << "Runtime memory operations applied: " << std::dec << plan.memory_initialization.size()
+                      << "\nChecked firmware patches applied: " << plan.patches.size()
+                      << "\nLCD model: " << (plan.has_lcd ? "mapped (experimental register layout)" : "not configured") << "\n";
             CPU cpu(memory);
             cpu.reset(plan.entry);
             for (const auto& reg : plan.initial_registers) cpu.set_register(reg.index, reg.value);
