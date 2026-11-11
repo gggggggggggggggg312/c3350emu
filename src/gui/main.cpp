@@ -81,7 +81,7 @@ void paint_screen(HWND w){
  PAINTSTRUCT ps{};HDC dc=BeginPaint(w,&ps);
  RECT frame{20,95,300,455};HBRUSH outer=CreateSolidBrush(RGB(70,70,70));FillRect(dc,&frame,outer);DeleteObject(outer);
  RECT lcd{40,105,280,425};HBRUSH black=CreateSolidBrush(RGB(0,0,0));FillRect(dc,&lcd,black);DeleteObject(black);
- BITMAPINFO bmi{};bmi.bmiHeader.biSize=sizeof(BITMAPINFOHEADER);bmi.bmiHeader.biWidth=128;bmi.bmiHeader.biHeight=-128;
+ BITMAPINFO bmi{};bmi.bmiHeader.biSize=sizeof(BITMAPINFOHEADER);bmi.bmiHeader.biWidth=240;bmi.bmiHeader.biHeight=-320;
  bmi.bmiHeader.biPlanes=1;bmi.bmiHeader.biBitCount=32;bmi.bmiHeader.biCompression=BI_RGB;
  StretchDIBits(dc,40,105,240,320,0,0,240,320,screenPixels.data(),&bmi,DIB_RGB_COLORS,SRCCOPY);
  SetBkMode(dc,TRANSPARENT);SetTextColor(dc,RGB(255,255,255));
@@ -92,7 +92,7 @@ LRESULT CALLBACK window_proc(HWND w,UINT m,WPARAM wp,LPARAM lp){
  if(m==WM_CREATE){
   CreateWindowA("BUTTON","Open boot plan...",WS_CHILD|WS_VISIBLE,20,18,160,32,w,(HMENU)ID_OPEN,nullptr,nullptr);
   CreateWindowA("BUTTON","Run firmware",WS_CHILD|WS_VISIBLE,192,18,150,32,w,(HMENU)ID_RUN,nullptr,nullptr);
-  CreateWindowA("STATIC","240 x 320 RGB565 experimental LCD",WS_CHILD|WS_VISIBLE,20,70,300,20,w,nullptr,nullptr,nullptr);
+  CreateWindowA("STATIC","240 x 320 RGB666 experimental LCD",WS_CHILD|WS_VISIBLE,20,70,300,20,w,nullptr,nullptr,nullptr);
   outputBox=CreateWindowExA(WS_EX_CLIENTEDGE,"EDIT","C3350EMU boot runtime\r\nOpen a .plan file. Configure LCD with an LCD base directive.\r\n",WS_CHILD|WS_VISIBLE|WS_VSCROLL|WS_HSCROLL|ES_MULTILINE|ES_AUTOVSCROLL|ES_READONLY,325,70,650,520,w,nullptr,nullptr,nullptr);
   return 0;
  }
