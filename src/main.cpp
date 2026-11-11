@@ -1,4 +1,5 @@
-#include "cpu/cpu.hpp"\n#ifdef C3350EMU_HAS_UNICORN\n#include "cpu/unicorn_cpu.hpp"\n#endif
+#include "cpu/cpu.hpp"
+#ifdef C3350EMU_HAS_UNICORN\n#include "cpu/unicorn_cpu.hpp"\n#endif
 #include "firmware/fls_parser.hpp"
 #include "firmware/boot_plan.hpp"
 #include "platform/platform.hpp"
@@ -53,7 +54,8 @@ static std::uint64_t parse_number(const char* value, const char* label) {
         throw std::runtime_error(std::string("Invalid ") + label + ".");
     return parsed;
 }
-int main(int argc, char** argv) {\n#ifdef C3350EMU_HAS_UNICORN
+int main(int argc, char** argv) {
+#ifdef C3350EMU_HAS_UNICORN
     if (argc == 7 && std::string(argv[1]) == "--run-unicorn-raw") {
         try {
             const auto ram_base = parse_number(argv[3], "RAM base");
