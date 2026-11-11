@@ -7,6 +7,7 @@
 #include <sstream>
 #include <stdexcept>
 #include <string>
+#include <utility>
 
 namespace firmware {
 namespace {
@@ -14,8 +15,9 @@ std::vector<std::uint8_t> hex_bytes(const std::string& value) {
     if (value.empty() || value.size()%2) throw std::runtime_error("Patch bytes must be even-length hexadecimal");
     std::vector<std::uint8_t> bytes;
     for (std::size_t i=0;i<value.size();i+=2) {
-        unsigned v=0; std::istringstream in(value.substr(i,2)); in>>std::hex>>v;
-        if (!in || !in.eof() || v>255) throw std::runtime_error("Invalid patch hex bytes");
+        std::size_t used=0;
+        const auto v=std::stoul(value.substr(i,2),&used,16);
+        if (used!=2 || v>255) throw std::runtime_error("Invalid patch hex bytes");
         bytes.push_back(static_cast<std::uint8_t>(v));
     }
     return bytes;
