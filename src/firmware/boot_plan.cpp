@@ -1,6 +1,6 @@
 #include "boot_plan.hpp"
 #include "memory/memory.hpp"
-#include <fstream>
+#include <fstream>\n#include <cctype>
 #include <iomanip>
 #include <limits>
 #include <sstream>
@@ -94,6 +94,19 @@ BootPlan parse_boot_plan(const std::filesystem::path& path) {
                     throw std::runtime_error("STUB range or initial byte is invalid");
                 plan.memory_stubs.push_back({static_cast<std::uint32_t>(b),
                     static_cast<std::size_t>(n),static_cast<std::uint8_t>(v)});
+             } else if(command=="LCD") {
+                std::string value,extra;
+                if(!(row>>value)||row>>extra)throw std::runtime_error("LCD requires one MMIO base address");
+                const auto v=number(value,"LCD base");if(v>0xffffffffu)throw std::runtime_error("LCD base exceeds 32 bits");
+                plan.lcd_base=static_cast<std::uint32_t>(v);plan.has_lcd=true;
+            } else if(command=="PATCH") {
+                std::string address,expected,replacement,extra;
+                if(!(row>>address>>expected>>replacement)||row>>extra)throw std::runtime_error("PATCH requires: address expected-hex replacement-hex");
+                const auto a=number(address,"patch address");
+                if(a>0xffffffffu)throw std::runtime_error("Patch address exceeds 32 bits");
+                auto old_bytes=hex_bytes(expected),new_bytes=hex_bytes(replacement);
+                if(old_bytes.size()!=new_bytes.size())throw std::runtime_error("Expected and replacement patch lengths must match");
+                plan.patches.push_back({static_cast<std::uint32_t>(a),std::move(old_bytes),std::move(new_bytes)});
             } else if(command=="SEGMENT") {
                 std::string file,offset,length,load,extra;
                 if(!(row>>std::quoted(file)>>offset>>length>>load)||row>>extra)
@@ -150,6 +163,19 @@ BootPlan parse_boot_plan(const std::filesystem::path& path) {
                 throw std::runtime_error("STUB regions overlap");
         }
     }
+    for(const auto& patch:plan.patches) {
+        const auto end=static_cast<std::uint64_t>(patch.address)+patch.expected.size();
+        if(patch.address<plan.ram_base||end>ram_end)throw std::runtime_error("Firmware patch is outside configured RAM");
+    }
+    if(plan.has_lcd) {
+        const std::uint64_t lcd_end=static_cast<std::uint64_t>(plan.lcd_base)+0x100u;
+        if(lcd_end>(std::uint64_t{1}<<32)||(plan.lcd_base<ram_end&&plan.ram_base<lcd_end))
+            throw std::runtime_error("LCD MMIO range overlaps configured RAM");
+        for(const auto& stub:plan.memory_stubs) {
+            const auto end=static_cast<std::uint64_t>(stub.base)+stub.size;
+            if(plan.lcd_base<end&&stub.base<lcd_end)throw std::runtime_error("LCD MMIO range overlaps a STUB region");
+        }
+    }
     for(const auto& op:plan.memory_initialization) {
         const auto destination_end=static_cast<std::uint64_t>(op.destination)+op.length;
         if(op.destination<plan.ram_base||destination_end>ram_end)
@@ -177,3 +203,14 @@ void apply_memory_initialization(const BootPlan& plan, Memory& memory) {
     }
 }
 }
+void apply_firmware_patches(const BootPlan& plan, Memory& memory) {
+    for (const auto& patch : plan.patches) {
+        for (std::size_t i=0;i<patch.expected.size();++i) {
+            const auto address=static_cast<std::uint32_t>(static_cast<std::uint64_t>(patch.address)+i);
+            if(memory.read8(address)!=patch.expected[i])
+                throw std::runtime_error("Firmware patch precondition failed at address 0x"+[&](){std::ostringstream s;s<<std::hex<<address;return s.str();}());
+        }
+        memory.write_block(patch.address,patch.replacement);
+    }
+}
+
