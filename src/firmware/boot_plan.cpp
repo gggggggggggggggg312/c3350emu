@@ -186,6 +186,11 @@ BootPlan parse_boot_plan(const std::filesystem::path& path) {
             const auto end=static_cast<std::uint64_t>(stub.base)+stub.size;
             if(plan.lcd_base<end&&stub.base<lcd_end)throw std::runtime_error("LCD MMIO range overlaps a STUB region");
         }
+        for(const auto& segment:plan.segments) {
+            const auto end=static_cast<std::uint64_t>(segment.load_address)+segment.length;
+            if(plan.lcd_base<end&&segment.load_address<lcd_end)
+                throw std::runtime_error("LCD MMIO range overlaps a loaded firmware segment");
+        }
     }
     for(const auto& op:plan.memory_initialization) {
         const auto destination_end=static_cast<std::uint64_t>(op.destination)+op.length;
