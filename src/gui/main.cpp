@@ -18,7 +18,7 @@
 namespace {
 HWND outputBox=nullptr;
 std::string selectedPlan;
-std::string screenStatus="NO BOOT PLAN";
+std::string screenStatus="IDLE SCREEN PREVIEW - NOT FIRMWARE";
 std::vector<std::uint32_t> screenPixels(LcdController::PixelCount,0xff101010u);
 constexpr int ID_OPEN=1001,ID_RUN=1002;
 void append(const std::string& s){
@@ -84,6 +84,26 @@ void paint_screen(HWND w){
  BITMAPINFO bmi{};bmi.bmiHeader.biSize=sizeof(BITMAPINFOHEADER);bmi.bmiHeader.biWidth=240;bmi.bmiHeader.biHeight=-320;
  bmi.bmiHeader.biPlanes=1;bmi.bmiHeader.biBitCount=32;bmi.bmiHeader.biCompression=BI_RGB;
  StretchDIBits(dc,40,105,240,320,0,0,240,320,screenPixels.data(),&bmi,DIB_RGB_COLORS,SRCCOPY);
+ if(screenStatus=="IDLE SCREEN PREVIEW - NOT FIRMWARE"){
+  // Visual-only C3350-style idle screen preview, not output from Samsung firmware.
+  RECT area{40,105,280,425};
+  HBRUSH bg=CreateSolidBrush(RGB(18,35,58));FillRect(dc,&area,bg);DeleteObject(bg);
+  HPEN accent=CreatePen(PS_SOLID,2,RGB(91,178,205));HPEN oldPen=(HPEN)SelectObject(dc,accent);
+  MoveToEx(dc,40,151,nullptr);LineTo(dc,280,151);
+  SelectObject(dc,oldPen);DeleteObject(accent);
+  SetBkMode(dc,TRANSPARENT);SetTextColor(dc,RGB(235,245,250));
+  HFONT font=CreateFontA(15,0,0,0,FW_BOLD,FALSE,FALSE,FALSE,DEFAULT_CHARSET,OUT_DEFAULT_PRECIS,CLIP_DEFAULT_PRECIS,CLEARTYPE_QUALITY,DEFAULT_PITCH,"Arial");
+  HFONT oldFont=(HFONT)SelectObject(dc,font);
+  RECT status{49,111,270,132};DrawTextA(dc,"SAMSUNG       3G       BATTERY",-1,&status,DT_LEFT|DT_SINGLELINE|DT_VCENTER);
+  HFONT clockFont=CreateFontA(43,0,0,0,FW_NORMAL,FALSE,FALSE,FALSE,DEFAULT_CHARSET,OUT_DEFAULT_PRECIS,CLIP_DEFAULT_PRECIS,CLEARTYPE_QUALITY,DEFAULT_PITCH,"Arial");
+  SelectObject(dc,clockFont);
+  RECT clock{48,205,272,260};DrawTextA(dc,"10:08",-1,&clock,DT_CENTER|DT_SINGLELINE|DT_VCENTER);
+  SelectObject(dc,font);SetTextColor(dc,RGB(190,220,235));
+  RECT date{48,261,272,286};DrawTextA(dc,"Wed, 11 November",-1,&date,DT_CENTER|DT_SINGLELINE|DT_VCENTER);
+  RECT carrier{48,300,272,324};DrawTextA(dc,"Viet Nam",-1,&carrier,DT_CENTER|DT_SINGLELINE|DT_VCENTER);
+  RECT soft{48,390,272,418};DrawTextA(dc,"Menu                         Contacts",-1,&soft,DT_LEFT|DT_SINGLELINE|DT_VCENTER);
+  SelectObject(dc,oldFont);DeleteObject(clockFont);DeleteObject(font);
+ }
  SetBkMode(dc,TRANSPARENT);SetTextColor(dc,RGB(255,255,255));
  RECT label{20,465,300,500};DrawTextA(dc,screenStatus.c_str(),-1,&label,DT_CENTER|DT_WORDBREAK);
  EndPaint(w,&ps);
@@ -92,7 +112,7 @@ LRESULT CALLBACK window_proc(HWND w,UINT m,WPARAM wp,LPARAM lp){
  if(m==WM_CREATE){
   CreateWindowA("BUTTON","Open boot plan...",WS_CHILD|WS_VISIBLE,20,18,160,32,w,(HMENU)ID_OPEN,nullptr,nullptr);
   CreateWindowA("BUTTON","Run firmware",WS_CHILD|WS_VISIBLE,192,18,150,32,w,(HMENU)ID_RUN,nullptr,nullptr);
-  CreateWindowA("STATIC","240 x 320 RGB666 experimental LCD",WS_CHILD|WS_VISIBLE,20,70,300,20,w,nullptr,nullptr,nullptr);
+  CreateWindowA("STATIC","240 x 320 LCD - idle-screen preview until firmware renders",WS_CHILD|WS_VISIBLE,20,70,300,20,w,nullptr,nullptr,nullptr);
   outputBox=CreateWindowExA(WS_EX_CLIENTEDGE,"EDIT","C3350EMU boot runtime\r\nOpen a .plan file. Configure LCD with an LCD base directive.\r\n",WS_CHILD|WS_VISIBLE|WS_VSCROLL|WS_HSCROLL|ES_MULTILINE|ES_AUTOVSCROLL|ES_READONLY,325,70,650,520,w,nullptr,nullptr,nullptr);
   return 0;
  }
